@@ -1,0 +1,491 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ue-bg-main: #1b1d21;
+  --ue-bg-deep: #121417;
+  --ue-bg-panel: #202329;
+  --ue-bg-panel-soft: #262a31;
+  --ue-bg-field: #15171b;
+  --ue-border: #343842;
+  --ue-border-soft: #2a2e36;
+  --ue-border-active: #4b9fff;
+  --ue-text-main: #e6e8eb;
+  --ue-text-secondary: #aeb4bf;
+  --ue-text-muted: #747b88;
+  --ue-blue: #3b82f6;
+  --ue-cyan: #38bdf8;
+  --ue-orange: #f59e0b;
+  --ue-success: #22c55e;
+  --ue-danger: #ef4444;
+  --ue-warning: #eab308;
+  --bg-app: #080b12;
+  --bg-shell: #0b1020;
+  --bg-panel: rgba(17, 24, 39, 0.86);
+  --bg-card: rgba(24, 32, 48, 0.78);
+  --bg-card-hover: rgba(31, 41, 63, 0.88);
+  --border-subtle: rgba(148, 163, 184, 0.16);
+  --border-strong: rgba(148, 163, 184, 0.28);
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #38bdf8;
+  --accent-gold: #f5c84c;
+  --success: #34d399;
+  --danger: #fb7185;
+  --warning: #fbbf24;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: var(--ue-bg-main);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #4a505a var(--ue-bg-deep);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--ue-bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid var(--ue-bg-deep);
+  border-radius: 999px;
+  background: #4a505a;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #636b78;
+}
+
+::selection {
+  background: rgba(75, 159, 255, 0.35);
+  color: var(--ue-text-main);
+}
+
+@layer components {
+  .editor-shell {
+    @apply relative flex h-screen min-h-screen flex-col overflow-hidden text-[color:var(--ue-text-main)];
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 160px),
+      var(--ue-bg-main);
+  }
+
+  .editor-menu-bar {
+    @apply flex h-8 shrink-0 items-center gap-1 border-b px-3 text-[12px];
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-deep);
+    color: var(--ue-text-secondary);
+  }
+
+  .editor-menu-brand {
+    @apply mr-3 font-semibold tracking-wide;
+    color: var(--ue-text-main);
+  }
+
+  .editor-menu-item {
+    @apply rounded border border-transparent px-2 py-1 text-left transition;
+  }
+
+  .editor-menu-item:hover {
+    background: var(--ue-bg-panel-soft);
+    color: var(--ue-text-main);
+  }
+
+  .editor-menu-item-active {
+    border-color: rgba(75, 159, 255, 0.35);
+    background: rgba(75, 159, 255, 0.12);
+    color: #bfdbfe;
+  }
+
+  .editor-toolbar {
+    @apply flex h-12 shrink-0 items-center justify-between gap-3 border-b px-3;
+    border-color: var(--ue-border);
+    background: #191c21;
+  }
+
+  .editor-tool-group {
+    @apply flex min-w-0 items-center gap-2;
+  }
+
+  .editor-toolbar-title {
+    @apply truncate text-sm font-semibold;
+    color: var(--ue-text-main);
+  }
+
+  .editor-toolbar-subtitle {
+    @apply hidden truncate text-xs md:block;
+    color: var(--ue-text-muted);
+  }
+
+  .editor-workspace {
+    @apply grid min-h-0 flex-1 gap-2 p-2 lg:grid-cols-[minmax(340px,380px)_minmax(0,1fr)_minmax(400px,440px)];
+    background: var(--ue-bg-main);
+  }
+
+  .editor-body {
+    @apply flex min-h-0 flex-1 overflow-hidden;
+    background: var(--ue-bg-main);
+  }
+
+  .activity-bar {
+    @apply flex w-16 shrink-0 flex-col items-center gap-1 border-r py-2;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-deep);
+  }
+
+  .activity-item {
+    @apply relative flex h-14 w-14 flex-col items-center justify-center gap-1 rounded border border-transparent text-[11px] transition;
+    color: var(--ue-text-muted);
+  }
+
+  .activity-item:hover {
+    background: var(--ue-bg-panel);
+    color: var(--ue-text-main);
+  }
+
+  .activity-item-active {
+    border-color: rgba(75, 159, 255, 0.45);
+    background: rgba(75, 159, 255, 0.12);
+    color: #bfdbfe;
+  }
+
+  .activity-item-active::before {
+    content: "";
+    @apply absolute left-0 top-2 h-10 w-0.5 rounded-r;
+    background: var(--ue-border-active);
+  }
+
+  .activity-icon {
+    @apply text-sm font-bold leading-none;
+  }
+
+  .activity-label {
+    @apply leading-none;
+  }
+
+  .editor-main-workspace {
+    @apply relative min-w-0 flex-1 overflow-hidden;
+    background: #181b20;
+  }
+
+  .workspace-view {
+    @apply absolute inset-0 min-h-0 overflow-y-auto p-3;
+  }
+
+  .workspace-view-inactive {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    transform: translateX(-120%);
+  }
+
+  .view-header {
+    @apply mb-3 rounded-md border px-4 py-3;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-panel);
+  }
+
+  .view-title {
+    @apply text-base font-semibold;
+    color: var(--ue-text-main);
+  }
+
+  .view-description {
+    @apply mt-1 text-sm;
+    color: var(--ue-text-muted);
+  }
+
+  .view-grid-two {
+    @apply grid gap-3 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)];
+  }
+
+  .dock-panel {
+    @apply flex min-h-0 flex-col overflow-hidden rounded-md border;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-panel);
+  }
+
+  .dock-panel-main {
+    border-color: #3b4658;
+  }
+
+  .dock-title-bar {
+    @apply flex h-[34px] shrink-0 items-center justify-between border-b px-3 text-[12px] font-semibold uppercase tracking-wide;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-deep);
+    color: var(--ue-text-secondary);
+  }
+
+  .dock-title-bar span:last-child {
+    color: var(--ue-text-muted);
+  }
+
+  .dock-body {
+    @apply min-h-0 flex-1 overflow-y-auto p-2;
+  }
+
+  .editor-status-bar {
+    @apply flex h-7 shrink-0 items-center justify-between border-t px-3 text-[12px];
+    border-color: var(--ue-border);
+    background: var(--ue-bg-deep);
+    color: var(--ue-text-secondary);
+  }
+
+  .ue-panel {
+    @apply rounded-md border p-4 shadow-none;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-panel-soft);
+  }
+
+  .ue-card {
+    @apply rounded-md border p-3 shadow-none transition;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-panel);
+  }
+
+  .ue-card:hover {
+    border-color: var(--ue-border);
+    background: var(--ue-bg-panel-soft);
+  }
+
+  .ue-button {
+    @apply rounded border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-panel-soft);
+    color: var(--ue-text-main);
+  }
+
+  .ue-button:hover:not(:disabled) {
+    border-color: var(--ue-border-active);
+    background: #303641;
+  }
+
+  .ue-button-primary {
+    @apply rounded border px-3 py-1.5 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-45;
+    border-color: #60a5fa;
+    background: var(--ue-blue);
+  }
+
+  .ue-button-primary:hover:not(:disabled) {
+    background: #4b9fff;
+  }
+
+  .ue-button-danger {
+    @apply rounded border px-3 py-1.5 text-xs font-semibold transition;
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.08);
+    color: #fca5a5;
+  }
+
+  .ue-field {
+    @apply w-full rounded border px-2.5 py-2 text-sm outline-none transition;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-field);
+    color: var(--ue-text-main);
+  }
+
+  .ue-field:focus {
+    border-color: var(--ue-border-active);
+    box-shadow: 0 0 0 1px rgba(75, 159, 255, 0.35);
+  }
+
+  .ue-badge {
+    @apply inline-flex items-center rounded border px-2 py-0.5 text-[11px] font-medium;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-field);
+    color: var(--ue-text-secondary);
+  }
+
+  .ue-badge-blue {
+    border-color: rgba(75, 159, 255, 0.55);
+    color: #bfdbfe;
+  }
+
+  .playtest-view {
+    @apply min-h-full;
+  }
+
+  .playtest-layout {
+    @apply grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px];
+  }
+
+  .playtest-canvas-panel {
+    @apply relative min-w-0 overflow-hidden rounded-md border;
+    min-height: 520px;
+    border-color: var(--ue-border);
+    background: #0b0e13;
+  }
+
+  .playtest-canvas-host {
+    @apply h-full min-h-[520px] w-full outline-none;
+  }
+
+  .playtest-canvas {
+    @apply block h-full w-full;
+  }
+
+  .playtest-error-panel {
+    @apply absolute inset-4 rounded-md border p-4 text-sm;
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(18, 20, 26, 0.94);
+    color: #fecaca;
+  }
+
+  .playtest-error-panel h3 {
+    @apply mb-2 text-sm font-semibold;
+    color: #fca5a5;
+  }
+
+  .playtest-side-panel {
+    @apply flex flex-col gap-3 rounded-md border p-3;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-panel);
+  }
+
+  .playtest-status-block {
+    @apply rounded-md border p-3;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-panel-soft);
+  }
+
+  .playtest-status-block h3 {
+    @apply mb-2 text-xs font-semibold uppercase tracking-wide;
+    color: var(--ue-text-secondary);
+  }
+
+  .playtest-source-badge {
+    @apply mb-2 inline-flex rounded border px-2 py-1 text-[11px] font-semibold;
+    border-color: rgba(75, 159, 255, 0.45);
+    background: rgba(75, 159, 255, 0.1);
+    color: #bfdbfe;
+  }
+
+  .playtest-stat-row {
+    @apply flex items-center justify-between gap-3 py-1 text-sm;
+    color: var(--ue-text-muted);
+  }
+
+  .playtest-stat-row strong {
+    @apply truncate text-right font-semibold;
+    color: var(--ue-text-main);
+  }
+
+  .playtest-skill-list {
+    @apply flex flex-col gap-2;
+  }
+
+  .playtest-skill-row {
+    @apply grid items-center gap-2 rounded border px-2 py-2 text-xs;
+    grid-template-columns: 28px minmax(0, 1fr) 54px;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-field);
+  }
+
+  .playtest-skill-slot {
+    @apply rounded border px-1.5 py-1 text-center font-semibold;
+    border-color: var(--ue-border);
+    color: #bfdbfe;
+  }
+
+  .playtest-skill-name {
+    @apply truncate;
+    color: var(--ue-text-main);
+  }
+
+  .playtest-cooldown {
+    @apply text-right tabular-nums;
+    color: var(--ue-text-secondary);
+  }
+
+  .playtest-help-list {
+    @apply flex flex-col gap-2 text-xs leading-5;
+    color: var(--ue-text-secondary);
+  }
+}
+
+.dock-body > form,
+.dock-body > section,
+.dock-body > aside,
+.dock-body article {
+  border-color: var(--ue-border-soft) !important;
+  border-radius: 8px !important;
+  background: var(--ue-bg-panel-soft) !important;
+  box-shadow: none !important;
+}
+
+.dock-body form > div:first-child .h-1,
+.dock-body section > .h-1,
+.dock-body article .h-1,
+.dock-body aside .h-1 {
+  height: 2px !important;
+  background: var(--ue-blue) !important;
+}
+
+.dock-body button {
+  border-radius: 4px !important;
+  background: var(--ue-bg-panel-soft) !important;
+  color: var(--ue-text-main) !important;
+  box-shadow: none !important;
+}
+
+.dock-body button:not(:disabled) {
+  border-color: var(--ue-border) !important;
+}
+
+.dock-body form button[type="submit"] {
+  border-color: var(--ue-border-active) !important;
+  background: var(--ue-blue) !important;
+  color: white !important;
+}
+
+.dock-body .rounded-2xl {
+  border-radius: 8px !important;
+}
+
+.dock-body .rounded-xl {
+  border-radius: 6px !important;
+}
+
+.dock-body input,
+.dock-body select,
+.dock-body textarea {
+  border-color: var(--ue-border-soft) !important;
+  border-radius: 4px !important;
+  background: var(--ue-bg-field) !important;
+  color: var(--ue-text-main) !important;
+}
+
+.dock-body input:focus,
+.dock-body select:focus,
+.dock-body textarea:focus {
+  border-color: var(--ue-border-active) !important;
+  box-shadow: 0 0 0 1px rgba(75, 159, 255, 0.35) !important;
+}
+
+.dock-body input[type="checkbox"] {
+  accent-color: var(--ue-blue);
+}
+
+.dock-body pre,
+.dock-body img {
+  border-radius: 6px;
+}

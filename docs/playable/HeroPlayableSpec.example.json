@@ -1,0 +1,100 @@
+{
+  "version": "1.0",
+  "hero": {
+    "id": "flame_guardian",
+    "name": "烈焰守卫",
+    "title": "灰烬战线的守护者",
+    "role": "burst_mage",
+    "max_hp": 1000,
+    "move_speed": 5.5,
+    "attack_damage": 45,
+    "attack_range": 6,
+    "resource_type": "mana",
+    "max_resource": 100
+  },
+  "gameplay_tags": ["fire", "burst", "area_damage"],
+  "skills": [
+    {
+      "slot": "Q",
+      "name": "烈焰冲击",
+      "type": "projectile",
+      "cooldown": 4,
+      "resource_cost": 20,
+      "damage": 120,
+      "range": 14,
+      "radius": 1.2,
+      "speed": 16,
+      "description": "向目标方向发射一枚火球，命中敌人后爆炸并造成范围伤害。",
+      "vfx": {
+        "theme": "fire",
+        "color": "#ff5a1f",
+        "shape": "fireball",
+        "impact": "explosion",
+        "trail": "ember_trail"
+      }
+    },
+    {
+      "slot": "W",
+      "name": "灰烬领域",
+      "type": "aoe_dot",
+      "cooldown": 10,
+      "resource_cost": 35,
+      "damage": 28,
+      "range": 10,
+      "radius": 4,
+      "duration": 5,
+      "tick_interval": 1,
+      "description": "在指定区域展开燃烧领域，每秒对区域内敌人造成火焰伤害。",
+      "vfx": {
+        "theme": "fire",
+        "color": "#ff8a2a",
+        "shape": "circle_zone",
+        "impact": "burning_ground",
+        "trail": "rising_embers"
+      }
+    },
+    {
+      "slot": "E",
+      "name": "炽焰突进",
+      "type": "dash",
+      "cooldown": 8,
+      "resource_cost": 25,
+      "damage": 70,
+      "distance": 7,
+      "radius": 1.5,
+      "duration": 0.35,
+      "description": "化作一道火焰向前突进，对路径上的敌人造成伤害。",
+      "vfx": {
+        "theme": "fire",
+        "color": "#f97316",
+        "shape": "trail",
+        "impact": "flame_sweep",
+        "trail": "dash_flame"
+      }
+    },
+    {
+      "slot": "R",
+      "name": "陨火审判",
+      "type": "aoe",
+      "cooldown": 45,
+      "resource_cost": 70,
+      "damage": 320,
+      "range": 16,
+      "radius": 5.5,
+      "duration": 1.2,
+      "description": "召唤巨大的陨火砸向目标区域，短暂延迟后造成高额范围爆发伤害。",
+      "vfx": {
+        "theme": "fire",
+        "color": "#ff3d00",
+        "shape": "meteor",
+        "impact": "large_explosion",
+        "trail": "falling_fire_tail"
+      }
+    }
+  ],
+  "runtime": {
+    "control_scheme": "wasd_mouse",
+    "camera": "third_person_follow",
+    "map_profile": "default_training_arena"
+  }
+}

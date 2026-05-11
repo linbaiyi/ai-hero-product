@@ -1,0 +1,29 @@
+# Environment files with secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Backend generated outputs
+backend/outputs/
+
+# Node / Electron
+node_modules/
+desktop/node_modules/
+dist/
+desktop/dist/
+desktop/dist-electron/
+desktop/release/
+
+# Logs and local caches
+*.log
+.DS_Store
+Thumbs.db
+.vite/
+coverage/
