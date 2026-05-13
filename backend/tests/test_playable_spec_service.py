@@ -30,6 +30,32 @@ def hero_design() -> dict:
     }
 
 
+def summon_hero_design() -> dict:
+    return {
+        "hero_name": "Liena Fire Spirit",
+        "hero_title": "Flame Pact Summoner",
+        "role": "mage",
+        "background": "她能召唤火灵协助战斗，并让召唤个体攻击附近敌人。",
+        "skills": [
+            {
+                "slot": "E",
+                "name": "召唤炎灵",
+                "description": "召唤一个火灵宠物协助攻击。",
+            }
+        ],
+    }
+
+
+def burning_hero_design() -> dict:
+    return {
+        "hero_name": "Liena Fire Spirit",
+        "hero_title": "Flame Pact Mage",
+        "role": "mage",
+        "background": "她的火焰技能会对敌人施加灼烧标记，持续造成燃烧伤害。",
+        "core_tags": ["fire", "burn", "灼烧"],
+    }
+
+
 def valid_spec() -> dict:
     return {
         "version": "1.0",
@@ -166,6 +192,37 @@ def test_invalid_llm_json_falls_back_to_safe_spec():
     assert spec.version == "1.0"
     assert {skill.slot for skill in spec.skills} == {"Q", "W", "E", "R"}
     assert spec.hero.name == "Solar Warden"
+
+
+def test_generate_prefers_summon_skill_when_hero_design_requests_summon():
+    service = PlayableSpecService(llm_client=ValidPlayableLLMClient())
+
+    spec = service.generate(summon_hero_design())
+
+    summon_skills = [skill for skill in spec.skills if skill.type == "summon"]
+    assert summon_skills
+    assert summon_skills[0].duration is not None
+    assert summon_skills[0].damage is not None
+    assert summon_skills[0].range is not None
+
+
+def test_fallback_safe_spec_can_include_summon_for_summon_hero_design():
+    service = PlayableSpecService(llm_client=InvalidPlayableLLMClient())
+
+    spec = service.generate(summon_hero_design())
+
+    assert any(skill.type == "summon" for skill in spec.skills)
+
+
+def test_generate_maps_burning_design_to_burn_status_effects():
+    service = PlayableSpecService(llm_client=ValidPlayableLLMClient())
+
+    spec = service.generate(burning_hero_design())
+
+    burn_skills = [
+        skill for skill in spec.skills if any(effect.type == "burn" for effect in skill.status_effects)
+    ]
+    assert burn_skills
 
 
 def test_llm_error_falls_back_to_safe_spec_from_json_string():

@@ -36,6 +36,7 @@ export function createBaseScene(options: RendererOptions = {}): RenderedGameScen
       obstacles: new Map(),
       projectiles: new Map(),
       zones: new Map(),
+      summons: new Map(),
     },
   };
 }

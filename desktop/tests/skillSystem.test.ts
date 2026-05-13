@@ -37,15 +37,60 @@ function makeBuffSpec(): HeroPlayableSpec {
   return spec;
 }
 
+function makeSummonSpec(): HeroPlayableSpec {
+  const spec = cloneSpec();
+  spec.skills[0] = {
+    ...spec.skills[0],
+    name: "Summon Flame Spirit",
+    type: "summon",
+    cooldown: 0,
+    resource_cost: 0,
+    damage: 18,
+    radius: 0.6,
+    range: 6,
+    duration: 3,
+    tick_interval: 1,
+    description: "Summons a flame spirit that attacks nearby enemies.",
+    vfx: {
+      theme: "fire",
+      color: "#ff5a1f",
+      shape: "rune",
+      impact: "summon_flash",
+      trail: "spirit_ember",
+    },
+  };
+  return spec;
+}
+
+function makeBurnProjectileSpec(): HeroPlayableSpec {
+  const spec = cloneSpec();
+  spec.skills[0] = {
+    ...spec.skills[0],
+    cooldown: 0,
+    resource_cost: 0,
+    status_effects: [
+      {
+        type: "burn",
+        duration: 3,
+        tick_interval: 1,
+        damage: 10,
+      },
+    ],
+  };
+  return spec;
+}
+
 describe("Skill System", () => {
   it("projectile cast creates projectile", () => {
     const state = createInitialGameStateFromSpec(defaultPlayableSpec);
 
-    const result = castSkill(state, defaultPlayableSpec, "Q", { x: 10, z: 0 });
+    const target = { x: 10, z: 0 };
+    const result = castSkill(state, defaultPlayableSpec, "Q", target);
 
     expect(result.success).toBe(true);
     expect(state.projectiles).toHaveLength(1);
     expect(state.projectiles[0]).toMatchObject({ skill_slot: "Q", is_alive: true });
+    expect(state.events[0]).toMatchObject({ type: "skill_cast", target });
   });
 
   it("projectile consumes resource and sets cooldown", () => {
@@ -101,6 +146,23 @@ describe("Skill System", () => {
     expect(enemy.hp).toBe(80);
     expect(state.projectiles).toHaveLength(0);
     expect(state.events.some((event) => event.type === "projectile_hit")).toBe(true);
+  });
+
+  it("projectile applies burn status and burn ticks damage", () => {
+    const spec = makeBurnProjectileSpec();
+    const enemy = createEnemy({ id: "dummy", position: { x: 14, z: 0 }, max_hp: 200 });
+    const state = createInitialGameStateFromSpec(spec, { enemies: [enemy] });
+
+    castSkill(state, spec, "Q", { x: 20, z: 0 });
+    updateSimulation(state, { x: 0, z: 0 }, 1);
+
+    expect(enemy.status_effects[0]).toMatchObject({ type: "burn" });
+    const hpAfterHit = enemy.hp;
+
+    updateSimulation(state, { x: 0, z: 0 }, 1);
+
+    expect(enemy.hp).toBe(hpAfterHit - 10);
+    expect(state.events.some((event) => event.type === "status_tick")).toBe(true);
   });
 
   it("projectile expires after range", () => {
@@ -220,6 +282,45 @@ describe("Skill System", () => {
     expect(state.hero.move_speed).toBe(originalMoveSpeed);
     expect(state.buffs).toHaveLength(0);
     expect(state.events.some((event) => event.type === "buff_expired")).toBe(true);
+  });
+
+  it("summon cast creates a summon at target", () => {
+    const spec = makeSummonSpec();
+    const state = createInitialGameStateFromSpec(spec);
+
+    const result = castSkill(state, spec, "Q", { x: 3, z: 2 });
+
+    expect(result.success).toBe(true);
+    expect(state.summons).toHaveLength(1);
+    expect(state.summons[0]).toMatchObject({
+      skill_slot: "Q",
+      position: { x: 3, z: 2 },
+      is_alive: true,
+    });
+    expect(state.events.some((event) => event.type === "summon_spawned")).toBe(true);
+  });
+
+  it("summon attacks nearby enemies over time", () => {
+    const spec = makeSummonSpec();
+    const enemy = createEnemy({ id: "dummy", position: { x: 4, z: 2 }, max_hp: 100 });
+    const state = createInitialGameStateFromSpec(spec, { enemies: [enemy] });
+    castSkill(state, spec, "Q", { x: 3, z: 2 });
+
+    updateSimulation(state, { x: 0, z: 0 }, 0.1);
+
+    expect(enemy.hp).toBe(82);
+    expect(state.events.some((event) => event.type === "summon_attack")).toBe(true);
+  });
+
+  it("summon expires after duration", () => {
+    const spec = makeSummonSpec();
+    const state = createInitialGameStateFromSpec(spec);
+    castSkill(state, spec, "Q", { x: 3, z: 2 });
+
+    updateSimulation(state, { x: 0, z: 0 }, 3);
+
+    expect(state.summons).toHaveLength(0);
+    expect(state.events.some((event) => event.type === "summon_expired")).toBe(true);
   });
 
   it("duplicate buff does not permanently stack incorrectly", () => {

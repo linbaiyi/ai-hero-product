@@ -1,11 +1,18 @@
 from pydantic import ValidationError
 
 from app.clients.llm_client import LLMClient
-from app.prompts.image_prompts import build_image_prompt_generation_prompt
+from app.prompts.image_prompts import (
+    build_image_prompt_generation_prompt,
+    generate_texture_prompts_for_skill,
+    generate_texture_prompts_for_vfx_design,
+)
 from app.schemas.image_prompt_schema import (
     ImagePromptBatchRequest,
     ImagePromptRequest,
     ImagePromptResult,
+    TexturePromptCollectionResult,
+    TexturePromptFromVfxRequest,
+    TexturePromptRequest,
 )
 
 
@@ -35,3 +42,28 @@ class ImagePromptService:
             )
             for vfx_design in req.vfx_designs
         ]
+
+    def generate_texture_prompts(
+        self, req: TexturePromptRequest
+    ) -> TexturePromptCollectionResult:
+        return TexturePromptCollectionResult.model_validate(
+            generate_texture_prompts_for_skill(
+                skill_name=req.skill_name,
+                skill_type=req.skill_type,
+                element=req.element,
+                keywords=req.keywords,
+                resource_types=req.resource_types,
+            )
+        )
+
+    def generate_texture_prompts_for_vfx(
+        self, req: TexturePromptFromVfxRequest
+    ) -> TexturePromptCollectionResult:
+        return TexturePromptCollectionResult.model_validate(
+            generate_texture_prompts_for_vfx_design(
+                vfx_design=req.vfx_design,
+                skill_type=req.skill_type,
+                element=req.element,
+                resource_types=req.resource_types,
+            )
+        )

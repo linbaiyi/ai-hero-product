@@ -5,3 +5,4 @@ export * from "./aoeSkill";
 export * from "./aoeDotSkill";
 export * from "./dashSkill";
 export * from "./buffSkill";
+export * from "./summonSkill";

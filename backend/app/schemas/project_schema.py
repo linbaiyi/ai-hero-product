@@ -6,6 +6,7 @@ from app.schemas.image_generation_schema import ImageGenerationResult
 from app.schemas.image_prompt_schema import ImagePromptResult
 from app.schemas.playable_schema import HeroPlayableSpec
 from app.schemas.request_schema import HeroGenerateRequest
+from app.schemas.runtime_vfx_schema import RuntimeVfxAssetSpec
 from app.schemas.vfx_schema import VfxDesign
 
 
@@ -18,6 +19,7 @@ class ProjectSaveRequest(BaseModel):
     image_results: list[ImageGenerationResult] = Field(default_factory=list)
     board_result: BoardRenderResult | None = None
     playable_spec: HeroPlayableSpec | None = None
+    runtime_vfx_asset_spec: RuntimeVfxAssetSpec | None = None
     llm_provider: str | None = None
     image_provider: str | None = None
 

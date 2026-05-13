@@ -1,12 +1,18 @@
+import type { ReactNode } from "react";
 import type { HeroDesign } from "../types/project";
 import SkillCard from "./SkillCard";
 
 type HeroResultPanelProps = {
   hero: HeroDesign | null;
   isLoading?: boolean;
+  headerAside?: ReactNode;
 };
 
-function HeroResultPanel({ hero, isLoading = false }: HeroResultPanelProps) {
+function HeroResultPanel({
+  hero,
+  isLoading = false,
+  headerAside = null,
+}: HeroResultPanelProps) {
   if (isLoading) {
     return (
       <section className="flex h-full min-h-[520px] items-center justify-center rounded-2xl border border-slate-400/15 bg-slate-900/75 p-6 shadow-lg shadow-black/20 backdrop-blur-xl">
@@ -41,6 +47,8 @@ function HeroResultPanel({ hero, isLoading = false }: HeroResultPanelProps) {
 
   return (
     <section className="rounded-2xl border border-slate-400/15 bg-slate-900/75 p-6 shadow-lg shadow-black/20 backdrop-blur-xl">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,430px)]">
+        <div>
       <div className="mb-5 h-1 w-12 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
       <p className="text-sm text-slate-400">{hero.hero_title}</p>
       <h2 className="mt-2 break-words text-3xl font-semibold tracking-[-0.02em] text-slate-50">
@@ -62,6 +70,12 @@ function HeroResultPanel({ hero, isLoading = false }: HeroResultPanelProps) {
             {tag}
           </span>
         ))}
+      </div>
+        </div>
+
+        {headerAside ? (
+          <div className="self-start lg:pt-2">{headerAside}</div>
+        ) : null}
       </div>
 
       <InfoBlock title="背景故事" content={hero.background} />

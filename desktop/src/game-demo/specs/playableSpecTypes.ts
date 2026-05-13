@@ -1,6 +1,12 @@
 export type SkillSlot = "Q" | "W" | "E" | "R";
 
-export type SkillType = "projectile" | "aoe" | "aoe_dot" | "dash" | "buff";
+export type SkillType =
+  | "projectile"
+  | "aoe"
+  | "aoe_dot"
+  | "dash"
+  | "buff"
+  | "summon";
 
 export type VfxTheme =
   | "fire"
@@ -27,6 +33,16 @@ export type VfxShape =
 
 export type ResourceType = "mana" | "energy" | "rage" | "none";
 
+export type StatusEffectType = "burn" | "poison" | "slow" | "mark" | "stun";
+
+export type SkillStatusEffectSpec = {
+  type: StatusEffectType;
+  duration: number;
+  tick_interval?: number;
+  damage?: number;
+  value?: number;
+};
+
 export type VfxSpec = {
   theme: VfxTheme;
   color: string;
@@ -48,6 +64,7 @@ export type SkillSpec = {
   duration?: number;
   tick_interval?: number;
   distance?: number;
+  status_effects?: SkillStatusEffectSpec[];
   description: string;
   vfx: VfxSpec;
 };

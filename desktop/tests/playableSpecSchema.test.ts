@@ -95,9 +95,38 @@ describe("HeroPlayableSpec desktop validation", () => {
 
   it("invalid skill type fails", () => {
     const spec = cloneSpec();
-    spec.skills[0].type = "summon" as SkillSpec["type"];
+    spec.skills[0].type = "summon_beast" as SkillSpec["type"];
 
     expectInvalid(spec);
+  });
+
+  it("summon skill type passes with duration", () => {
+    const spec = cloneSpec();
+    spec.skills[0] = {
+      ...spec.skills[0],
+      type: "summon",
+      duration: 6,
+      damage: 15,
+      radius: 0.7,
+      range: 7,
+      tick_interval: 1,
+    };
+
+    expect(validatePlayableSpec(spec).success).toBe(true);
+  });
+
+  it("status effects pass validation", () => {
+    const spec = cloneSpec();
+    spec.skills[0].status_effects = [
+      {
+        type: "burn",
+        duration: 3,
+        tick_interval: 1,
+        damage: 10,
+      },
+    ];
+
+    expect(validatePlayableSpec(spec).success).toBe(true);
   });
 
   it("duplicate skill slot fails", () => {

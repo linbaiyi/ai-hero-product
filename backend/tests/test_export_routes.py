@@ -9,7 +9,11 @@ from app.main import app
 from app.schemas.project_schema import ProjectSaveRequest
 from app.storage.file_storage import get_board_output_dir, get_image_output_dir
 from app.storage.project_repository import ProjectRepository
-from project_test_helpers import make_playable_spec, make_project_save_request
+from project_test_helpers import (
+    make_playable_spec,
+    make_project_save_request,
+    make_runtime_vfx_asset_spec,
+)
 
 
 client = TestClient(app)
@@ -26,10 +30,15 @@ def create_project(
     repository: ProjectRepository,
     project_id: str = "project_demo",
     playable_spec: dict | None = None,
+    runtime_vfx_asset_spec: dict | None = None,
 ):
     record = repository.save_project(
         ProjectSaveRequest.model_validate(
-            make_project_save_request(project_id, playable_spec=playable_spec)
+            make_project_save_request(
+                project_id,
+                playable_spec=playable_spec,
+                runtime_vfx_asset_spec=runtime_vfx_asset_spec,
+            )
         )
     )
     image_dir = get_image_output_dir(record.project_id)
@@ -84,6 +93,27 @@ def test_export_route_can_include_playable_spec(tmp_path: Path) -> None:
     assert "playable/default_training_map.json" in names
     assert "Test Playable Hero" in readme
     assert training_map["id"] == "default_training_arena"
+
+
+def test_export_route_can_include_runtime_vfx_spec(tmp_path: Path) -> None:
+    repository = override_repo(tmp_path)
+    record = create_project(
+        repository,
+        runtime_vfx_asset_spec=make_runtime_vfx_asset_spec(),
+    )
+
+    response = client.post(
+        f"/api/projects/{record.project_id}/export",
+        json={"include_runtime_vfx": True},
+    )
+
+    assert response.status_code == 200
+    import zipfile
+
+    with zipfile.ZipFile(response.json()["export_path"]) as archive:
+        names = set(archive.namelist())
+    assert "playable/runtime_vfx/runtime_vfx_asset_spec.json" in names
+    assert "playable/runtime_vfx/README.md" in names
 
 
 def test_download_export_route_returns_zip(tmp_path: Path) -> None:

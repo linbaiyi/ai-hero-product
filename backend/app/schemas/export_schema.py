@@ -7,6 +7,7 @@ class ExportProjectRequest(BaseModel):
     include_images: bool = True
     include_board: bool = True
     include_playable: bool = True
+    include_runtime_vfx: bool = False
 
 
 class ExportProjectResult(BaseModel):

@@ -8,6 +8,8 @@ import { tickCooldowns } from "./cooldown";
 import { updateProjectiles } from "./skills/projectileSkill";
 import { updateAoeDotZones } from "./skills/aoeDotSkill";
 import { updateBuffs } from "./skills/buffSkill";
+import { updateSummons } from "./skills/summonSkill";
+import { updateEnemyStatusEffects } from "./statusEffects";
 
 export function createInitialGameStateFromSpec(
   spec: HeroPlayableSpec,
@@ -23,6 +25,7 @@ export function createInitialGameStateFromSpec(
     projectiles: [],
     active_zones: [],
     buffs: [],
+    summons: [],
     events: [],
   };
 }
@@ -40,5 +43,7 @@ export function updateSimulation(
   updateProjectiles(state, delta);
   updateAoeDotZones(state, delta);
   updateBuffs(state, delta);
+  updateSummons(state, delta);
+  state.events.push(...updateEnemyStatusEffects(state.enemies, delta));
   return state;
 }

@@ -7,7 +7,12 @@ from app.schemas.project_schema import (
     ProjectSaveRequest,
     ProjectSummary,
 )
-from project_test_helpers import make_playable_spec, make_project_save_request, now_iso
+from project_test_helpers import (
+    make_playable_spec,
+    make_project_save_request,
+    make_runtime_vfx_asset_spec,
+    now_iso,
+)
 
 
 def test_valid_project_save_request_passes_validation():
@@ -41,6 +46,27 @@ def test_project_save_request_accepts_valid_playable_spec():
 def test_project_save_request_rejects_invalid_playable_spec():
     payload = make_project_save_request(playable_spec=make_playable_spec())
     payload["playable_spec"]["version"] = "2.0"
+
+    with pytest.raises(ValidationError):
+        ProjectSaveRequest(**payload)
+
+
+def test_project_save_request_accepts_valid_runtime_vfx_asset_spec():
+    req = ProjectSaveRequest(
+        **make_project_save_request(
+            runtime_vfx_asset_spec=make_runtime_vfx_asset_spec()
+        )
+    )
+
+    assert req.runtime_vfx_asset_spec is not None
+    assert req.runtime_vfx_asset_spec.hero_id == "test_playable_hero"
+
+
+def test_project_save_request_rejects_invalid_runtime_vfx_asset_spec():
+    payload = make_project_save_request(
+        runtime_vfx_asset_spec=make_runtime_vfx_asset_spec()
+    )
+    payload["runtime_vfx_asset_spec"]["version"] = "2.0"
 
     with pytest.raises(ValidationError):
         ProjectSaveRequest(**payload)

@@ -5,105 +5,112 @@ export type InputState = {
   move: Vec2;
   pressedSkills: Set<SkillSlot>;
   pointerTarget?: Vec2;
+  moveDestination?: Vec2;
 };
 
 export type InputController = {
   state: InputState;
   destroy: () => void;
   clearPressedSkills: () => void;
+  clearMoveDestination: () => void;
+  clearPointerTarget: () => void;
 };
 
 type InputTarget = HTMLElement | Window;
 
-export function createSkillSlotFromNumberKey(key: string): SkillSlot | null {
-  switch (key) {
-    case "1":
+export type InputControllerOptions = {
+  keyboardTarget?: InputTarget;
+  resolvePointerTarget?: (event: MouseEvent) => Vec2 | null;
+};
+
+export function createSkillSlotFromKey(key: string): SkillSlot | null {
+  switch (key.toLowerCase()) {
+    case "q":
       return "Q";
-    case "2":
+    case "w":
       return "W";
-    case "3":
+    case "e":
       return "E";
-    case "4":
+    case "r":
       return "R";
     default:
       return null;
   }
 }
 
-export function createInputController(target: InputTarget): InputController {
-  const pressedMovementKeys = new Set<string>();
+export const createSkillSlotFromNumberKey = createSkillSlotFromKey;
+
+export function createInputController(
+  target: InputTarget,
+  options: InputControllerOptions = {},
+): InputController {
+  const keyboardTarget = options.keyboardTarget ?? target;
   const state: InputState = {
     move: { x: 0, z: 0 },
     pressedSkills: new Set<SkillSlot>(),
   };
 
-  const updateMove = () => {
-    state.move = {
-      x: axisValue(pressedMovementKeys, ["d", "arrowright"], ["a", "arrowleft"]),
-      z: axisValue(pressedMovementKeys, ["w", "arrowup"], ["s", "arrowdown"]),
-    };
-  };
-
   const handleKeyDown = (event: KeyboardEvent) => {
-    const movementKey = normalizeKey(event.key);
-    if (isMovementKey(movementKey)) {
-      pressedMovementKeys.add(movementKey);
-      updateMove();
-    }
-
-    const skillSlot = createSkillSlotFromNumberKey(event.key);
+    const skillSlot = createSkillSlotFromKey(event.key);
     if (skillSlot) {
+      event.preventDefault();
       state.pressedSkills.add(skillSlot);
     }
   };
 
-  const handleKeyUp = (event: KeyboardEvent) => {
-    const movementKey = normalizeKey(event.key);
-    if (isMovementKey(movementKey)) {
-      pressedMovementKeys.delete(movementKey);
-      updateMove();
+  const updatePointerTarget = (event: MouseEvent): Vec2 | null => {
+    const targetPoint = options.resolvePointerTarget?.(event);
+    if (!targetPoint) {
+      return null;
+    }
+    state.pointerTarget = targetPoint;
+    return targetPoint;
+  };
+
+  const handlePointerMove = (event: MouseEvent) => {
+    updatePointerTarget(event);
+  };
+
+  const handlePointerDown = (event: MouseEvent) => {
+    const targetPoint = updatePointerTarget(event);
+    if (!targetPoint) {
+      return;
+    }
+
+    if (event.button === 2) {
+      event.preventDefault();
+      state.moveDestination = targetPoint;
     }
   };
 
-  target.addEventListener("keydown", handleKeyDown as EventListener);
-  target.addEventListener("keyup", handleKeyUp as EventListener);
+  const handleContextMenu = (event: Event) => {
+    event.preventDefault();
+  };
+
+  keyboardTarget.addEventListener("keydown", handleKeyDown as EventListener);
+  target.addEventListener("mousemove", handlePointerMove as EventListener);
+  target.addEventListener("mousedown", handlePointerDown as EventListener);
+  target.addEventListener("contextmenu", handleContextMenu as EventListener);
 
   return {
     state,
     clearPressedSkills: () => state.pressedSkills.clear(),
-    destroy: () => {
-      target.removeEventListener("keydown", handleKeyDown as EventListener);
-      target.removeEventListener("keyup", handleKeyUp as EventListener);
-      pressedMovementKeys.clear();
-      state.pressedSkills.clear();
+    clearMoveDestination: () => {
+      state.moveDestination = undefined;
       state.move = { x: 0, z: 0 };
     },
+    clearPointerTarget: () => {
+      state.pointerTarget = undefined;
+    },
+    destroy: () => {
+      keyboardTarget.removeEventListener("keydown", handleKeyDown as EventListener);
+      target.removeEventListener("mousemove", handlePointerMove as EventListener);
+      target.removeEventListener("mousedown", handlePointerDown as EventListener);
+      target.removeEventListener("contextmenu", handleContextMenu as EventListener);
+      state.pressedSkills.clear();
+      state.move = { x: 0, z: 0 };
+      state.pointerTarget = undefined;
+      state.moveDestination = undefined;
+    },
   };
-}
-
-function normalizeKey(key: string): string {
-  return key.toLowerCase();
-}
-
-function isMovementKey(key: string): boolean {
-  return (
-    key === "w" ||
-    key === "a" ||
-    key === "s" ||
-    key === "d" ||
-    key === "arrowup" ||
-    key === "arrowdown" ||
-    key === "arrowleft" ||
-    key === "arrowright"
-  );
-}
-
-function axisValue(
-  keys: Set<string>,
-  positiveKeys: string[],
-  negativeKeys: string[],
-): number {
-  const positive = positiveKeys.some((key) => keys.has(key)) ? 1 : 0;
-  const negative = negativeKeys.some((key) => keys.has(key)) ? 1 : 0;
-  return positive - negative;
 }

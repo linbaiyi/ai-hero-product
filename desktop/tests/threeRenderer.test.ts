@@ -72,6 +72,9 @@ describe("Three renderer", () => {
 
     expect(handles.handles.hero).toBeInstanceOf(THREE.Group);
     expect(handles.entity_group.children).toContain(handles.handles.hero);
+    expect(handles.handles.hero?.getObjectByName("health-bar")).toBeInstanceOf(
+      THREE.Group,
+    );
   });
 
   it("renderGameState creates enemy meshes from map state", () => {
@@ -82,6 +85,44 @@ describe("Three renderer", () => {
 
     expect(handles.handles.enemies.size).toBe(state.enemies.length);
     expect(handles.handles.enemies.get("dummy_1")).toBeInstanceOf(THREE.Mesh);
+    expect(
+      handles.handles.enemies.get("dummy_1")?.getObjectByName("health-bar"),
+    ).toBeInstanceOf(THREE.Group);
+  });
+
+  it("updates enemy health bar when hp changes", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    renderGameState(handles, state);
+    state.enemies[0].hp = state.enemies[0].max_hp / 2;
+
+    updateGameState(handles, state);
+
+    const fill = handles.handles.enemies
+      .get(state.enemies[0].id)
+      ?.getObjectByName("health-bar-fill");
+    expect(fill?.scale.x).toBeCloseTo(0.5);
+  });
+
+  it("renders enemy status effect markers", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.enemies[0].status_effects.push({
+      id: "burn_1",
+      type: "burn",
+      source_skill_slot: "Q",
+      duration_remaining: 3,
+      tick_interval: 1,
+      tick_timer: 1,
+      damage: 10,
+      value: 0,
+    });
+
+    renderGameState(handles, state);
+
+    const enemy = handles.handles.enemies.get(state.enemies[0].id);
+    expect(enemy?.getObjectByName("status-effects")).toBeInstanceOf(THREE.Group);
+    expect(enemy?.getObjectByName("status:burn")).toBeInstanceOf(THREE.Mesh);
   });
 
   it("updateGameState updates hero mesh position after movement", () => {
@@ -108,6 +149,7 @@ describe("Three renderer", () => {
       radius: 1,
       damage: 100,
       remaining_range: 8,
+      status_effects: [],
       is_alive: true,
     });
 
@@ -131,6 +173,7 @@ describe("Three renderer", () => {
       duration_remaining: 4,
       tick_interval: 1,
       tick_timer: 1,
+      status_effects: [],
       is_alive: true,
     });
 
@@ -140,6 +183,61 @@ describe("Three renderer", () => {
     expect(zone).toBeInstanceOf(THREE.Mesh);
     expect(zone?.position.x).toBe(4);
     expect(zone?.position.z).toBe(3);
+  });
+
+  it("summon state creates summon mesh", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.summons.push({
+      id: "summon_1",
+      skill_slot: "Q",
+      name: "Flame Spirit",
+      position: { x: 2, z: -1 },
+      max_hp: 120,
+      hp: 90,
+      radius: 0.6,
+      damage: 18,
+      attack_range: 6,
+      attack_interval: 1,
+      attack_timer: 0,
+      duration_remaining: 3,
+      status_effects: [],
+      is_alive: true,
+    });
+
+    renderGameState(handles, state);
+
+    const summon = handles.handles.summons.get("summon_1");
+    expect(summon).toBeInstanceOf(THREE.Group);
+    expect(summon?.position.x).toBe(2);
+    expect(summon?.position.z).toBe(-1);
+    expect(summon?.getObjectByName("health-bar")).toBeInstanceOf(THREE.Group);
+  });
+
+  it("clearGameState removes summon meshes", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.summons.push({
+      id: "summon_1",
+      skill_slot: "Q",
+      name: "Flame Spirit",
+      position: { x: 2, z: -1 },
+      max_hp: 120,
+      hp: 120,
+      radius: 0.6,
+      damage: 18,
+      attack_range: 6,
+      attack_interval: 1,
+      attack_timer: 0,
+      duration_remaining: 3,
+      status_effects: [],
+      is_alive: true,
+    });
+    renderGameState(handles, state);
+
+    clearGameState(handles);
+
+    expect(handles.handles.summons.size).toBe(0);
   });
 
   it("dead enemy is hidden or rendered with dead state", () => {
@@ -187,6 +285,7 @@ describe("Three renderer", () => {
       radius: 1,
       damage: 100,
       remaining_range: 8,
+      status_effects: [],
       is_alive: true,
     });
     const before = cloneState(state);

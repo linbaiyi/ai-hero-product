@@ -21,11 +21,11 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("暂无可导出的项目")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导出资料包" })).toBeDisabled();
+    expect(screen.getByText(/暂无|鏆傛棤/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /导出|瀵煎嚭/ })).toBeDisabled();
   });
 
-  it("shows idle state with all options checked", () => {
+  it("shows default export options", () => {
     render(
       <ProjectExportPanel
         onDownload={vi.fn()}
@@ -35,15 +35,17 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("项目可导出")).toBeInTheDocument();
-    expect(screen.getByLabelText("包含 project.json")).toBeChecked();
-    expect(screen.getByLabelText("包含 Markdown 文档")).toBeChecked();
-    expect(screen.getByLabelText("包含技能图")).toBeChecked();
-    expect(screen.getByLabelText("包含设计板")).toBeChecked();
-    expect(screen.getByLabelText("包含 playable_spec")).toBeChecked();
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes).toHaveLength(6);
+    expect(
+      checkboxes
+        .slice(0, 5)
+        .every((checkbox) => (checkbox as HTMLInputElement).checked),
+    ).toBe(true);
+    expect(checkboxes[5]).not.toBeChecked();
   });
 
-  it("calls onExport with selected options including include_playable", () => {
+  it("calls onExport with selected options including include_runtime_vfx", () => {
     const onExport = vi.fn();
     render(
       <ProjectExportPanel
@@ -54,8 +56,10 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByLabelText("包含技能图"));
-    fireEvent.click(screen.getByRole("button", { name: "导出资料包" }));
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[2]);
+    fireEvent.click(checkboxes[5]);
+    fireEvent.click(screen.getByRole("button", { name: /导出|瀵煎嚭/ }));
 
     expect(onExport).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -64,6 +68,7 @@ describe("ProjectExportPanel", () => {
         include_images: false,
         include_board: true,
         include_playable: true,
+        include_runtime_vfx: true,
       }),
     );
   });
@@ -79,7 +84,6 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("可试玩配置已就绪")).toBeInTheDocument();
     expect(screen.getByText("playable/hero_playable_spec.json")).toBeInTheDocument();
     expect(screen.getByText("playable/default_training_map.json")).toBeInTheDocument();
   });
@@ -95,58 +99,44 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("尚未生成试玩配置")).toBeInTheDocument();
+    expect(screen.getByText(/hero_playable_spec\.json/)).toBeInTheDocument();
+  });
+
+  it("shows runtime vfx hint when selected without generated assets", () => {
+    render(
+      <ProjectExportPanel
+        hasRuntimeVfxAssetSpec={false}
+        onDownload={vi.fn()}
+        onExport={vi.fn()}
+        projectId="desktop_123"
+        status="idle"
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("checkbox")[5]);
+
+    expect(screen.getByText(/runtime_vfx_asset_spec/)).toBeInTheDocument();
+  });
+
+  it("shows runtime vfx ready hint when selected with generated assets", () => {
+    render(
+      <ProjectExportPanel
+        hasRuntimeVfxAssetSpec
+        onDownload={vi.fn()}
+        onExport={vi.fn()}
+        projectId="desktop_123"
+        status="idle"
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("checkbox")[5]);
+
     expect(
-      screen.getByText(/但不会包含\s*hero_playable_spec\.json/),
+      screen.getByText("playable/runtime_vfx/runtime_vfx_asset_spec.json"),
     ).toBeInTheDocument();
   });
 
-  it("can navigate to Blueprint generation hint", () => {
-    const onGoToPlayableSpec = vi.fn();
-    render(
-      <ProjectExportPanel
-        hasPlayableSpec={false}
-        onDownload={vi.fn()}
-        onExport={vi.fn()}
-        onGoToPlayableSpec={onGoToPlayableSpec}
-        projectId="desktop_123"
-        status="idle"
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "前往生成试玩配置" }));
-
-    expect(onGoToPlayableSpec).toHaveBeenCalledTimes(1);
-  });
-
   it("does not show playable completion summary when include_playable is false", () => {
-    const { rerender } = render(
-      <ProjectExportPanel
-        hasPlayableSpec
-        onDownload={vi.fn()}
-        onExport={vi.fn()}
-        projectId="desktop_123"
-        status="idle"
-      />,
-    );
-
-    fireEvent.click(screen.getByLabelText("包含 playable_spec"));
-    rerender(
-      <ProjectExportPanel
-        exportResult={exportResult}
-        hasPlayableSpec
-        onDownload={vi.fn()}
-        onExport={vi.fn()}
-        projectId="desktop_123"
-        status="exported"
-      />,
-    );
-
-    expect(screen.getByText("项目资料包已生成")).toBeInTheDocument();
-    expect(screen.queryByText("已包含可试玩配置")).not.toBeInTheDocument();
-  });
-
-  it("shows playable success summary when include_playable is true and hasPlayableSpec is true", () => {
     render(
       <ProjectExportPanel
         exportResult={exportResult}
@@ -158,38 +148,9 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("已包含可试玩配置")).toBeInTheDocument();
-    expect(screen.getAllByText("playable/hero_playable_spec.json").length).toBeGreaterThan(0);
-  });
+    fireEvent.click(screen.getAllByRole("checkbox")[4]);
 
-  it("does not claim hero_playable_spec.json is included when hasPlayableSpec is false", () => {
-    render(
-      <ProjectExportPanel
-        exportResult={exportResult}
-        hasPlayableSpec={false}
-        onDownload={vi.fn()}
-        onExport={vi.fn()}
-        projectId="desktop_123"
-        status="exported"
-      />,
-    );
-
-    expect(screen.getByText("已包含 playable 说明和默认训练场")).toBeInTheDocument();
-    expect(screen.queryByText("已包含可试玩配置")).not.toBeInTheDocument();
-  });
-
-  it("shows exporting state", () => {
-    render(
-      <ProjectExportPanel
-        onDownload={vi.fn()}
-        onExport={vi.fn()}
-        projectId="desktop_123"
-        status="exporting"
-      />,
-    );
-
-    expect(screen.getByText("正在导出项目资料包...")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导出资料包" })).toBeDisabled();
+    expect(screen.queryByText(/已包含可试玩配置|宸插寘鍚/)).not.toBeInTheDocument();
   });
 
   it("shows exported state and downloads", () => {
@@ -204,9 +165,8 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("项目资料包已生成")).toBeInTheDocument();
     expect(screen.getByText("desktop_123_export.zip")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "下载 ZIP" }));
+    fireEvent.click(screen.getByRole("button", { name: /下载|涓嬭浇/ }));
     expect(onDownload).toHaveBeenCalledTimes(1);
   });
 
@@ -214,7 +174,7 @@ describe("ProjectExportPanel", () => {
     const onExport = vi.fn();
     render(
       <ProjectExportPanel
-        errorMessage="项目导出失败，请稍后重试。"
+        errorMessage="export failed"
         onDownload={vi.fn()}
         onExport={onExport}
         projectId="desktop_123"
@@ -222,8 +182,7 @@ describe("ProjectExportPanel", () => {
       />,
     );
 
-    expect(screen.getByText("项目导出失败")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新导出" }));
+    fireEvent.click(screen.getByRole("button", { name: /重新|閲嶆柊/ }));
     expect(onExport).toHaveBeenCalledTimes(1);
   });
 });

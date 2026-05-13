@@ -7,6 +7,7 @@ import { castAoeSkill } from "./aoeSkill";
 import { castBuffSkill } from "./buffSkill";
 import { castDashSkill } from "./dashSkill";
 import { castProjectileSkill } from "./projectileSkill";
+import { castSummonSkill } from "./summonSkill";
 import type { CastSkillResult } from "./skillTypes";
 import { createFailedResult, createSuccessResult } from "./skillTypes";
 
@@ -41,7 +42,13 @@ export function castSkill(
   setCooldown(state.hero.cooldowns, skill.slot, skill.cooldown);
 
   const events: GameEvent[] = [
-    { type: "skill_cast", skill_slot: skill.slot, skill_type: skill.type },
+    {
+      type: "skill_cast",
+      skill_slot: skill.slot,
+      skill_type: skill.type,
+      target,
+      radius: skill.radius ?? undefined,
+    },
     ...skillEvents,
   ];
   state.events.push(...events);
@@ -60,6 +67,8 @@ function castByType(state: GameState, skill: SkillSpec, target: Vec2): GameEvent
       return castDashSkill(state, skill, target);
     case "buff":
       return castBuffSkill(state, skill);
+    case "summon":
+      return castSummonSkill(state, skill, target);
   }
 }
 

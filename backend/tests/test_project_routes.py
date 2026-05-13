@@ -4,7 +4,11 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.storage.project_repository import ProjectRepository
-from project_test_helpers import make_playable_spec, make_project_save_request
+from project_test_helpers import (
+    make_playable_spec,
+    make_project_save_request,
+    make_runtime_vfx_asset_spec,
+)
 
 
 client = TestClient(app)
@@ -56,6 +60,33 @@ def test_save_project_rejects_invalid_playable_spec(tmp_path):
     override_repo(tmp_path)
     payload = make_project_save_request(playable_spec=make_playable_spec())
     payload["playable_spec"]["skills"] = []
+
+    response = client.post("/api/projects/save", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_saved_project_can_return_runtime_vfx_asset_spec(tmp_path):
+    override_repo(tmp_path)
+    client.post(
+        "/api/projects/save",
+        json=make_project_save_request(
+            runtime_vfx_asset_spec=make_runtime_vfx_asset_spec()
+        ),
+    )
+
+    response = client.get("/api/projects/project_demo")
+
+    assert response.status_code == 200
+    assert response.json()["runtime_vfx_asset_spec"]["hero_id"] == "test_playable_hero"
+
+
+def test_save_project_rejects_invalid_runtime_vfx_asset_spec(tmp_path):
+    override_repo(tmp_path)
+    payload = make_project_save_request(
+        runtime_vfx_asset_spec=make_runtime_vfx_asset_spec()
+    )
+    payload["runtime_vfx_asset_spec"]["skills"]["Q"]["assets"]["projectile"]["path"] = "../bad.png"
 
     response = client.post("/api/projects/save", json=payload)
 

@@ -7,6 +7,7 @@ import { generateHeroDesign } from "../src/api/heroApi";
 import { generateImage } from "../src/api/imageGenerationApi";
 import { generateImagePromptBatch } from "../src/api/imagePromptApi";
 import { generatePlayableSpec } from "../src/api/playableApi";
+import { generateRuntimeVfxAssets } from "../src/api/runtimeVfxApi";
 import {
   deleteProject,
   getProject,
@@ -35,6 +36,9 @@ vi.mock("../src/api/projectApi", () => ({
   deleteProject: vi.fn(),
 }));
 vi.mock("../src/api/playableApi", () => ({ generatePlayableSpec: vi.fn() }));
+vi.mock("../src/api/runtimeVfxApi", () => ({
+  generateRuntimeVfxAssets: vi.fn(),
+}));
 
 const mockedCheckBackendHealth = vi.mocked(checkBackendHealth);
 const mockedGenerateHeroDesign = vi.mocked(generateHeroDesign);
@@ -49,6 +53,7 @@ const mockedListProjects = vi.mocked(listProjects);
 const mockedGetProject = vi.mocked(getProject);
 const mockedDeleteProject = vi.mocked(deleteProject);
 const mockedGeneratePlayableSpec = vi.mocked(generatePlayableSpec);
+const mockedGenerateRuntimeVfxAssets = vi.mocked(generateRuntimeVfxAssets);
 
 describe("HomePage", () => {
   beforeEach(() => {
@@ -69,6 +74,7 @@ describe("HomePage", () => {
     mockedGetProject.mockReset();
     mockedDeleteProject.mockReset();
     mockedGeneratePlayableSpec.mockReset();
+    mockedGenerateRuntimeVfxAssets.mockReset();
   });
 
   it("renders the desktop shell", async () => {

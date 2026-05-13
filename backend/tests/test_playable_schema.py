@@ -49,10 +49,40 @@ def test_invalid_version_fails():
 
 def test_invalid_skill_type_fails():
     data = load_example()
-    data["skills"][0]["type"] = "summon"
+    data["skills"][0]["type"] = "summon_beast"
 
     with pytest.raises(ValidationError):
         validate(data)
+
+
+def test_summon_skill_type_passes_with_duration():
+    data = load_example()
+    data["skills"][0]["type"] = "summon"
+    data["skills"][0]["duration"] = 6
+    data["skills"][0]["damage"] = 15
+    data["skills"][0]["radius"] = 0.7
+    data["skills"][0]["range"] = 7
+    data["skills"][0]["tick_interval"] = 1
+
+    spec = validate(data)
+
+    assert spec.skills[0].type == "summon"
+
+
+def test_status_effects_pass_validation():
+    data = load_example()
+    data["skills"][0]["status_effects"] = [
+        {
+            "type": "burn",
+            "duration": 3,
+            "tick_interval": 1,
+            "damage": 10,
+        }
+    ]
+
+    spec = validate(data)
+
+    assert spec.skills[0].status_effects[0].type == "burn"
 
 
 def test_duplicate_skill_slot_fails():

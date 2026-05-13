@@ -175,7 +175,7 @@ def test_validate_route_returns_valid_true_for_valid_spec():
 
 def test_validate_route_returns_valid_false_for_invalid_spec():
     spec = copy.deepcopy(valid_spec())
-    spec["skills"][0]["type"] = "summon"
+    spec["skills"][0]["type"] = "summon_beast"
 
     response = client.post(
         "/api/playable/validate",

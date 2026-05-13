@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { defaultPlayableSpec } from "../specs/defaultPlayableSpec";
 import { normalizePlayableSpec } from "../specs/normalizePlayableSpec";
 import type { HeroPlayableSpec } from "../specs/playableSpecTypes";
+import { normalizeRuntimeVfxAssetSpec } from "../vfx-assets/normalizeRuntimeVfxAssetSpec";
+import type { RuntimeVfxAssetSpec } from "../vfx-assets/runtimeVfxTypes";
 import {
   createPlaytestInitialState,
   createPlaytestSnapshot,
@@ -14,11 +16,13 @@ export type PlaytestSpecSource = "current_project" | "default";
 export type PlaytestViewProps = {
   playableSpec?: HeroPlayableSpec | null;
   playableSpecSource?: PlaytestSpecSource;
+  runtimeVfxAssetSpec?: RuntimeVfxAssetSpec | null;
 };
 
 function PlaytestView({
   playableSpec,
   playableSpecSource = playableSpec ? "current_project" : "default",
+  runtimeVfxAssetSpec,
 }: PlaytestViewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<PlaytestRuntime | null>(null);
@@ -38,6 +42,29 @@ function PlaytestView({
       };
     }
   }, [playableSpec]);
+  const resolvedRuntimeVfx = useMemo(() => {
+    if (!runtimeVfxAssetSpec) {
+      return {
+        spec: null as RuntimeVfxAssetSpec | null,
+        error: null as string | null,
+      };
+    }
+
+    try {
+      return {
+        spec: normalizeRuntimeVfxAssetSpec(runtimeVfxAssetSpec),
+        error: null as string | null,
+      };
+    } catch (error) {
+      return {
+        spec: null,
+        error:
+          error instanceof Error
+            ? `运行时贴图资产配置无效，已回退到默认几何体效果。${error.message}`
+            : "运行时贴图资产配置无效，已回退到默认几何体效果。",
+      };
+    }
+  }, [runtimeVfxAssetSpec]);
   const effectiveSource: PlaytestSpecSource =
     resolvedSpec.error || !playableSpec ? "default" : playableSpecSource;
   const initialSnapshot = useMemo(
@@ -50,11 +77,13 @@ function PlaytestView({
   );
   const [snapshot, setSnapshot] = useState<PlaytestSnapshot>(initialSnapshot);
   const [runtimeError, setRuntimeError] = useState<string | null>(resolvedSpec.error);
+  const [noCooldownEnabled, setNoCooldownEnabled] = useState(false);
+  const [showVfxRangeDebug, setShowVfxRangeDebug] = useState(false);
 
   useEffect(() => {
     setSnapshot(initialSnapshot);
-    setRuntimeError(resolvedSpec.error);
-  }, [initialSnapshot, resolvedSpec.error]);
+    setRuntimeError(resolvedSpec.error ?? resolvedRuntimeVfx.error);
+  }, [initialSnapshot, resolvedSpec.error, resolvedRuntimeVfx.error]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -63,7 +92,12 @@ function PlaytestView({
     }
 
     try {
-      const runtime = new PlaytestRuntime(container, { spec: resolvedSpec.spec });
+      const runtime = new PlaytestRuntime(container, {
+        spec: resolvedSpec.spec,
+        runtimeVfxAssetSpec: resolvedRuntimeVfx.spec,
+        noCooldownEnabled,
+        showVfxRangeDebug,
+      });
       runtimeRef.current = runtime;
       setSnapshot(runtime.getStateSnapshot());
       const snapshotTimer = window.setInterval(() => {
@@ -83,7 +117,7 @@ function PlaytestView({
       );
       return undefined;
     }
-  }, [resolvedSpec.spec]);
+  }, [resolvedSpec.spec, resolvedRuntimeVfx.spec]);
 
   const handleReset = () => {
     const runtime = runtimeRef.current;
@@ -93,6 +127,26 @@ function PlaytestView({
     }
     runtime.reset();
     setSnapshot(runtime.getStateSnapshot());
+  };
+
+  const handleToggleNoCooldown = () => {
+    const nextValue = !noCooldownEnabled;
+    setNoCooldownEnabled(nextValue);
+    runtimeRef.current?.setNoCooldownEnabled(nextValue);
+    const snapshot = runtimeRef.current?.getStateSnapshot();
+    if (snapshot) {
+      setSnapshot(snapshot);
+    }
+  };
+
+  const handleToggleVfxRangeDebug = () => {
+    const nextValue = !showVfxRangeDebug;
+    setShowVfxRangeDebug(nextValue);
+    runtimeRef.current?.setShowVfxRangeDebug(nextValue);
+    const snapshot = runtimeRef.current?.getStateSnapshot();
+    if (snapshot) {
+      setSnapshot(snapshot);
+    }
   };
 
   return (
@@ -108,6 +162,20 @@ function PlaytestView({
         </div>
         <button className="ue-button" onClick={handleReset} type="button">
           Reset
+        </button>
+        <button
+          className={`ue-button ${noCooldownEnabled ? "ue-button-primary" : ""}`}
+          onClick={handleToggleNoCooldown}
+          type="button"
+        >
+          {noCooldownEnabled ? "无 CD：开" : "无 CD：关"}
+        </button>
+        <button
+          className={`ue-button ${showVfxRangeDebug ? "ue-button-primary" : ""}`}
+          onClick={handleToggleVfxRangeDebug}
+          type="button"
+        >
+          {showVfxRangeDebug ? "范围调试：开" : "范围调试：关"}
         </button>
       </div>
 
@@ -171,9 +239,31 @@ function PlaytestView({
           <section className="playtest-status-block">
             <h3>Controls</h3>
             <div className="playtest-help-list">
-              <span>WASD / Arrow Keys: move</span>
-              <span>1 / 2 / 3 / 4: cast Q / W / E / R</span>
+              <span>Right Click: move hero</span>
+              <span>Move mouse / Left Click: aim skill target</span>
+              <span>Q / W / E / R: cast toward mouse position</span>
+              <span>No CD: temporarily set skill cooldowns to 0</span>
+              <span>范围调试：显示真实技能范围、敌人碰撞和 projectile 范围</span>
               <span>Reset: reset current arena spec</span>
+            </div>
+          </section>
+
+          <section className="playtest-status-block">
+            <h3>Runtime VFX</h3>
+            <div className="playtest-help-list">
+              {resolvedRuntimeVfx.spec ? (
+                <span>Runtime VFX: texture + procedural enabled</span>
+              ) : (
+                <span>Runtime VFX: fallback geometry active</span>
+              )}
+              <span>Procedural instances: {snapshot.runtime_vfx_instance_count}</span>
+              <span>Range debug: {snapshot.show_vfx_range_debug ? "on" : "off"}</span>
+              {resolvedRuntimeVfx.error ? (
+                <span>{resolvedRuntimeVfx.error}</span>
+              ) : null}
+              {snapshot.runtime_vfx_warnings.map((warning) => (
+                <span key={warning}>贴图 fallback：{warning}</span>
+              ))}
             </div>
           </section>
         </aside>
@@ -183,6 +273,9 @@ function PlaytestView({
 }
 
 function formatNumber(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "∞";
+  }
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 

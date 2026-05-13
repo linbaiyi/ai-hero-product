@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type {
   BoardRenderResult,
   ImageGenerationResult,
@@ -25,6 +26,7 @@ type VfxBreakdownPanelProps = {
   isBoardRendering?: boolean;
   boardRenderError?: string | null;
   onRetryBoard?: () => void;
+  headerAside?: ReactNode;
 };
 
 function VfxBreakdownPanel({
@@ -44,6 +46,7 @@ function VfxBreakdownPanel({
   isBoardRendering = false,
   boardRenderError = null,
   onRetryBoard,
+  headerAside = null,
 }: VfxBreakdownPanelProps) {
   if (isLoading) {
     return (
@@ -90,10 +93,16 @@ function VfxBreakdownPanel({
       />
 
       <div className="rounded-2xl border border-slate-400/15 bg-slate-900/75 p-6 shadow-lg shadow-black/20 backdrop-blur-xl">
-        <div className="mb-5 h-1 w-12 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
+        <div className="mb-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(420px,1fr)]">
+          <div>
+            <div className="mb-5 h-1 w-12 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
         <h2 className="text-xl font-semibold text-slate-50">
           技能特效拆解方案
         </h2>
+
+          </div>
+          {headerAside ? <div className="self-start">{headerAside}</div> : null}
+        </div>
 
         {imagePromptError ? (
           <div className="mt-5">

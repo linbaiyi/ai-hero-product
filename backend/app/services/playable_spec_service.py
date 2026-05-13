@@ -29,6 +29,7 @@ class PlayableSpecService:
             return HeroPlayableSpec.model_validate(build_safe_default_spec(hero_design))
 
         try:
+            raw_spec = apply_design_mechanic_mapping(raw_spec, hero_design)
             return HeroPlayableSpec.model_validate(raw_spec)
         except ValidationError:
             return HeroPlayableSpec.model_validate(build_safe_default_spec(hero_design))
@@ -59,7 +60,7 @@ def build_safe_default_spec(hero_design: Any | None = None) -> dict[str, Any]:
     theme = _infer_theme(hero_design)
     color = _theme_color(theme)
 
-    return {
+    spec = {
         "version": "1.0",
         "hero": {
             "id": _slugify(hero_name),
@@ -159,6 +160,75 @@ def build_safe_default_spec(hero_design: Any | None = None) -> dict[str, Any]:
             "map_profile": "default_training_arena",
         },
     }
+    return apply_design_mechanic_mapping(spec, hero_design)
+
+
+def apply_design_mechanic_mapping(
+    spec: dict[str, Any],
+    hero_design: Any | None,
+) -> dict[str, Any]:
+    spec = prefer_summon_skill_when_requested(spec, hero_design)
+    return add_status_effects_when_requested(spec, hero_design)
+
+
+def prefer_summon_skill_when_requested(
+    spec: dict[str, Any],
+    hero_design: Any | None,
+) -> dict[str, Any]:
+    if not _hero_design_requests_summon(hero_design):
+        return spec
+    skills = spec.get("skills")
+    if not isinstance(skills, list) or any(skill.get("type") == "summon" for skill in skills if isinstance(skill, dict)):
+        return spec
+
+    target_skill = _find_summon_candidate_skill(skills)
+    if target_skill is None:
+        return spec
+
+    target_skill["type"] = "summon"
+    target_skill.setdefault("duration", 8)
+    target_skill.setdefault("damage", 18)
+    target_skill.setdefault("radius", 0.75)
+    target_skill.setdefault("range", 7)
+    target_skill.setdefault("tick_interval", 1)
+    if not str(target_skill.get("description", "")).strip():
+        target_skill["description"] = "Summon an allied entity that attacks nearby training enemies."
+    elif "summon" not in str(target_skill.get("description", "")).lower():
+        target_skill["description"] = (
+            f"{target_skill['description']} Summons an allied entity that attacks nearby enemies."
+        )
+    return spec
+
+
+def add_status_effects_when_requested(
+    spec: dict[str, Any],
+    hero_design: Any | None,
+) -> dict[str, Any]:
+    status_type = _infer_status_effect_type(hero_design)
+    if status_type is None:
+        return spec
+
+    skills = spec.get("skills")
+    if not isinstance(skills, list):
+        return spec
+
+    for skill in skills:
+        if not isinstance(skill, dict) or not _skill_can_apply_status(skill):
+            continue
+        effects = skill.setdefault("status_effects", [])
+        if not isinstance(effects, list):
+            skill["status_effects"] = effects = []
+        if any(isinstance(effect, dict) and effect.get("type") == status_type for effect in effects):
+            continue
+        effects.append(
+            {
+                "type": status_type,
+                "duration": 3.0 if status_type == "burn" else 4.0,
+                "tick_interval": 1.0,
+                "damage": _status_damage_for_skill(skill, status_type),
+            }
+        )
+    return spec
 
 
 def _extract_text(source: Any, keys: list[str], fallback: str) -> str:
@@ -180,6 +250,129 @@ def _extract_text(source: Any, keys: list[str], fallback: str) -> str:
         return source.strip().splitlines()[0][:80]
 
     return fallback
+
+
+def _hero_design_requests_summon(source: Any | None) -> bool:
+    text = _to_searchable_text(source)
+    strong_keywords = [
+        "summon",
+        "summoner",
+        "minion",
+        "pet",
+        "familiar",
+        "clone",
+        "totem",
+        "召唤",
+        "召喚",
+        "分身",
+        "宠物",
+        "寵物",
+        "使魔",
+        "火灵",
+        "炎灵",
+        "灵体",
+        "灵火",
+        "图腾",
+        "炮台",
+        "傀儡",
+    ]
+    return any(keyword in text for keyword in strong_keywords)
+
+
+def _find_summon_candidate_skill(skills: list[Any]) -> dict[str, Any] | None:
+    for skill in skills:
+        if isinstance(skill, dict) and _skill_mentions_summon(skill):
+            return skill
+
+    for preferred_type in ("buff", "aoe_dot", "aoe"):
+        for skill in skills:
+            if isinstance(skill, dict) and skill.get("type") == preferred_type:
+                return skill
+
+    for skill in skills:
+        if isinstance(skill, dict):
+            return skill
+    return None
+
+
+def _skill_mentions_summon(skill: dict[str, Any]) -> bool:
+    text = _to_searchable_text(
+        {
+            "name": skill.get("name"),
+            "description": skill.get("description"),
+            "vfx": skill.get("vfx"),
+        }
+    )
+    keywords = [
+        "summon",
+        "minion",
+        "pet",
+        "familiar",
+        "clone",
+        "spirit",
+        "guardian",
+        "召唤",
+        "召喚",
+        "分身",
+        "宠物",
+        "寵物",
+        "使魔",
+        "火灵",
+        "炎灵",
+        "灵体",
+        "守卫",
+        "守護",
+        "幻影",
+        "傀儡",
+    ]
+    return any(keyword in text for keyword in keywords)
+
+
+def _infer_status_effect_type(source: Any | None) -> str | None:
+    text = _to_searchable_text(source)
+    if any(
+        keyword in text
+        for keyword in [
+            "burn",
+            "burning",
+            "ignite",
+            "scorch",
+            "灼烧",
+            "燃烧",
+            "点燃",
+            "灼燒",
+            "火焰标记",
+            "火焰印记",
+        ]
+    ):
+        return "burn"
+    if any(keyword in text for keyword in ["poison", "toxin", "venom", "中毒", "毒"]):
+        return "poison"
+    return None
+
+
+def _skill_can_apply_status(skill: dict[str, Any]) -> bool:
+    skill_type = skill.get("type")
+    return skill_type in {"projectile", "aoe", "aoe_dot", "dash", "summon"}
+
+
+def _status_damage_for_skill(skill: dict[str, Any], status_type: str) -> float:
+    base_damage = skill.get("damage")
+    if not isinstance(base_damage, (int, float)):
+        return 8.0 if status_type == "burn" else 6.0
+    multiplier = 0.12 if status_type == "burn" else 0.1
+    return max(4.0, min(30.0, round(float(base_damage) * multiplier, 2)))
+
+
+def _to_searchable_text(value: Any | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.lower()
+    try:
+        return json.dumps(value, ensure_ascii=False).lower()
+    except TypeError:
+        return str(value).lower()
 
 
 def _infer_theme(source: Any) -> str:

@@ -7,6 +7,10 @@ import { generateImage } from "../api/imageGenerationApi";
 import { generateImagePromptBatch } from "../api/imagePromptApi";
 import { generatePlayableSpec } from "../api/playableApi";
 import {
+  generateRuntimeVfxAssets,
+  type RuntimeVfxGeneratedAsset,
+} from "../api/runtimeVfxApi";
+import {
   deleteProject,
   getProject,
   listProjects,
@@ -26,6 +30,8 @@ import VfxBreakdownPanel from "../components/VfxBreakdownPanel";
 import PlaytestView from "../game-demo/playtest/PlaytestView";
 import { normalizePlayableSpec } from "../game-demo/specs/normalizePlayableSpec";
 import type { HeroPlayableSpec } from "../game-demo/specs/playableSpecTypes";
+import { normalizeRuntimeVfxAssetSpec } from "../game-demo/vfx-assets/normalizeRuntimeVfxAssetSpec";
+import type { RuntimeVfxAssetSpec } from "../game-demo/vfx-assets/runtimeVfxTypes";
 import type {
   BackendConnectionStatus,
   BackendHealthResponse,
@@ -46,6 +52,7 @@ import type {
 } from "../types/project";
 
 type PlayableSpecStatus = "idle" | "generating" | "ready" | "error";
+type RuntimeVfxStatus = "idle" | "generating" | "ready" | "error";
 
 const IMAGE_REQUEST_DELAY_MS = 1200;
 
@@ -95,6 +102,17 @@ function HomePage() {
   const [playableSpecStatus, setPlayableSpecStatus] =
     useState<PlayableSpecStatus>("idle");
   const [playableSpecError, setPlayableSpecError] = useState<string | null>(null);
+  const [runtimeVfxAssetSpec, setRuntimeVfxAssetSpec] =
+    useState<RuntimeVfxAssetSpec | null>(null);
+  const [runtimeVfxStatus, setRuntimeVfxStatus] =
+    useState<RuntimeVfxStatus>("idle");
+  const [runtimeVfxError, setRuntimeVfxError] = useState<string | null>(null);
+  const [runtimeVfxWarnings, setRuntimeVfxWarnings] = useState<string[]>([]);
+  const [runtimeVfxGeneratedAssets, setRuntimeVfxGeneratedAssets] = useState<
+    RuntimeVfxGeneratedAsset[]
+  >([]);
+  const [runtimeVfxRestoreAttemptedFor, setRuntimeVfxRestoreAttemptedFor] =
+    useState<string | null>(null);
   const [savedProject, setSavedProject] = useState<ProjectRecord | null>(null);
   const [historyProjects, setHistoryProjects] = useState<ProjectSummary[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -175,6 +193,7 @@ function HomePage() {
           image_results: results,
           board_result: board,
           playable_spec: playableSpec,
+          runtime_vfx_asset_spec: runtimeVfxAssetSpec,
           llm_provider: null,
           image_provider: null,
         });
@@ -189,7 +208,7 @@ function HomePage() {
         setProjectSaveStatus("failed");
       }
     },
-    [loadHistoryProjects, playableSpec],
+    [loadHistoryProjects, playableSpec, runtimeVfxAssetSpec],
   );
 
   const renderBoardForResults = useCallback(
@@ -380,6 +399,12 @@ function HomePage() {
       setPlayableSpec(null);
       setPlayableSpecStatus("idle");
       setPlayableSpecError(null);
+      setRuntimeVfxAssetSpec(null);
+      setRuntimeVfxStatus("idle");
+      setRuntimeVfxError(null);
+      setRuntimeVfxWarnings([]);
+      setRuntimeVfxGeneratedAssets([]);
+      setRuntimeVfxRestoreAttemptedFor(null);
       setSavedProject(null);
       setActiveProjectId(null);
       setIsGeneratingHero(true);
@@ -511,6 +536,12 @@ function HomePage() {
       setPlayableSpec(null);
       setPlayableSpecStatus("idle");
       setPlayableSpecError(null);
+      setRuntimeVfxAssetSpec(null);
+      setRuntimeVfxStatus("idle");
+      setRuntimeVfxError(null);
+      setRuntimeVfxWarnings([]);
+      setRuntimeVfxGeneratedAssets([]);
+      setRuntimeVfxRestoreAttemptedFor(project.project_id);
       setIsGeneratingHero(false);
       setIsGeneratingVfx(false);
       setIsGeneratingImagePrompts(false);
@@ -530,6 +561,24 @@ function HomePage() {
         setPlayableSpecStatus("error");
         setPlayableSpecError(
           "历史项目中的试玩配置无效，已回退到默认测试英雄。",
+        );
+      }
+      try {
+        setRuntimeVfxAssetSpec(
+          project.runtime_vfx_asset_spec
+            ? normalizeRuntimeVfxAssetSpec(project.runtime_vfx_asset_spec)
+            : null,
+        );
+        setRuntimeVfxStatus(project.runtime_vfx_asset_spec ? "ready" : "idle");
+        setRuntimeVfxError(null);
+        setRuntimeVfxWarnings([]);
+        setRuntimeVfxGeneratedAssets([]);
+      } catch {
+        setRuntimeVfxAssetSpec(null);
+        setRuntimeVfxStatus("error");
+        setRuntimeVfxRestoreAttemptedFor(project.project_id);
+        setRuntimeVfxError(
+          "历史项目中的运行时贴图资产配置无效，已跳过该配置。",
         );
       }
       setActiveView("blueprint");
@@ -614,6 +663,11 @@ function HomePage() {
       });
       setPlayableSpec(spec);
       setPlayableSpecStatus("ready");
+      setRuntimeVfxAssetSpec(null);
+      setRuntimeVfxStatus("idle");
+      setRuntimeVfxError(null);
+      setRuntimeVfxWarnings([]);
+      setRuntimeVfxGeneratedAssets([]);
       if (currentProjectId && lastRequest && heroDesign) {
         try {
           const record = await saveProject({
@@ -625,6 +679,7 @@ function HomePage() {
             image_results: imageResults,
             board_result: boardResult,
             playable_spec: spec,
+            runtime_vfx_asset_spec: null,
             llm_provider: null,
             image_provider: null,
           });
@@ -647,6 +702,102 @@ function HomePage() {
     }
   };
 
+  const handleGenerateRuntimeVfx = async () => {
+    if (!playableSpec) {
+      setRuntimeVfxError("请先在 Blueprint 页面生成试玩配置。");
+      setRuntimeVfxStatus("error");
+      return;
+    }
+
+    setRuntimeVfxStatus("generating");
+    setRuntimeVfxError(null);
+    setRuntimeVfxWarnings([]);
+
+    try {
+      const result = await generateRuntimeVfxAssets({
+        playable_spec: playableSpec,
+        runtime_vfx_asset_spec: null,
+        max_textures: 8,
+        image_size: "512x512",
+        transparent_background: true,
+        project_id: currentProjectId,
+      });
+      setRuntimeVfxAssetSpec(result.runtime_vfx_asset_spec);
+      setRuntimeVfxGeneratedAssets(result.generated_assets);
+      setRuntimeVfxWarnings(result.warnings);
+      setRuntimeVfxStatus("ready");
+      setRuntimeVfxRestoreAttemptedFor(currentProjectId);
+
+      if (currentProjectId && lastRequest && heroDesign) {
+        try {
+          const record = await saveProject({
+            project_id: currentProjectId,
+            request: lastRequest,
+            hero_design: heroDesign,
+            vfx_designs: vfxDesigns,
+            image_prompts: imagePrompts,
+            image_results: imageResults,
+            board_result: boardResult,
+            playable_spec: playableSpec,
+            runtime_vfx_asset_spec: result.runtime_vfx_asset_spec,
+            llm_provider: null,
+            image_provider: null,
+          });
+          setSavedProject(record);
+          setActiveProjectId(record.project_id);
+          setProjectSaveStatus("saved");
+          await loadHistoryProjects();
+        } catch {
+          setProjectSaveStatus("failed");
+          setProjectSaveError(
+            "运行时贴图资产已生成，但项目自动保存失败。请稍后重试保存项目。",
+          );
+        }
+      }
+    } catch (error) {
+      setRuntimeVfxError(
+        error instanceof Error ? error.message : "运行时贴图资产生成失败，请稍后重试。",
+      );
+      setRuntimeVfxStatus("error");
+    }
+  };
+
+  useEffect(() => {
+    if (
+      activeView !== "playtest" ||
+      !activeProjectId ||
+      runtimeVfxAssetSpec ||
+      savedProject?.runtime_vfx_asset_spec ||
+      runtimeVfxRestoreAttemptedFor === activeProjectId
+    ) {
+      return;
+    }
+
+    setRuntimeVfxRestoreAttemptedFor(activeProjectId);
+    void getProject(activeProjectId)
+      .then((project) => {
+        setSavedProject(project);
+        if (!project.runtime_vfx_asset_spec) {
+          return;
+        }
+        setRuntimeVfxAssetSpec(
+          normalizeRuntimeVfxAssetSpec(project.runtime_vfx_asset_spec),
+        );
+        setRuntimeVfxStatus("ready");
+        setRuntimeVfxError(null);
+      })
+      .catch(() => {
+        // Playtest can still run with default geometry if the optional runtime VFX
+        // config cannot be restored.
+      });
+  }, [
+    activeProjectId,
+    activeView,
+    runtimeVfxAssetSpec,
+    runtimeVfxRestoreAttemptedFor,
+    savedProject?.runtime_vfx_asset_spec,
+  ]);
+
   const statusText = isGeneratingHero
     ? "Generating Hero"
     : isGeneratingVfx
@@ -659,10 +810,125 @@ function HomePage() {
             ? "Rendering Board"
             : playableSpecStatus === "generating"
               ? "Generating Playable"
+              : runtimeVfxStatus === "generating"
+                ? "Generating Runtime VFX"
               : "Ready";
 
   const viewClass = (view: ActivityView) =>
     `workspace-view ${activeView === view ? "" : "workspace-view-inactive"}`;
+  const activeRuntimeVfxAssetSpec =
+    runtimeVfxStatus === "error"
+      ? null
+      : runtimeVfxAssetSpec ?? savedProject?.runtime_vfx_asset_spec ?? null;
+
+  const playableDemoPanel = (
+    <section className="rounded-xl border border-slate-400/15 bg-slate-950/35 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-[#e6e8eb]">Playable Demo</h3>
+          <p className="mt-1 text-sm text-[#747b88]">
+            当前 Playtest 使用：{playableSpec ? "当前英雄" : "默认测试英雄"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="ue-button"
+            disabled={!heroDesign || playableSpecStatus === "generating"}
+            onClick={() => void handleGeneratePlayableSpec()}
+            type="button"
+          >
+            {playableSpecStatus === "generating"
+              ? "正在生成试玩配置..."
+              : playableSpec
+                ? "重新生成试玩配置"
+                : "生成试玩配置"}
+          </button>
+          {playableSpec ? (
+            <button
+              className="ue-button-primary"
+              onClick={() => setActiveView("playtest")}
+              type="button"
+            >
+              进入 Playtest
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {playableSpecStatus === "ready" ? (
+        <p className="mt-2 text-sm text-[#86efac]">试玩配置已生成</p>
+      ) : null}
+      {playableSpecError ? (
+        <div className="mt-3">
+          <ErrorPanel
+            message={playableSpecError}
+            onRetry={heroDesign ? handleGeneratePlayableSpec : undefined}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+
+  const runtimeVfxPanel = (
+    <section
+      aria-label="Runtime VFX Assets"
+      className="rounded-xl border border-slate-400/15 bg-slate-950/35 p-4"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-[#e6e8eb]">运行时贴图资产</h3>
+          <p className="mt-1 text-sm text-[#747b88]">
+            {activeRuntimeVfxAssetSpec
+              ? "运行时贴图资产已生成"
+              : "当前还没有运行时贴图资产"}
+          </p>
+        </div>
+        <button
+          className="ue-button"
+          disabled={!playableSpec || runtimeVfxStatus === "generating"}
+          onClick={() => void handleGenerateRuntimeVfx()}
+          type="button"
+        >
+          {runtimeVfxStatus === "generating"
+            ? "正在生成运行时贴图资产..."
+            : activeRuntimeVfxAssetSpec
+              ? "重新生成运行时贴图资产"
+              : "生成运行时贴图资产"}
+        </button>
+      </div>
+      {!playableSpec ? (
+        <p className="mt-3 text-sm text-amber-200">
+          请先在 Blueprint 页面生成试玩配置。
+        </p>
+      ) : null}
+      {activeRuntimeVfxAssetSpec ? (
+        <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+          <p className="font-semibold">运行时贴图资产已生成</p>
+          <p className="mt-1">hero_id: {activeRuntimeVfxAssetSpec.hero_id}</p>
+          <p className="mt-1">
+            技能槽位: {Object.keys(activeRuntimeVfxAssetSpec.skills).join(" / ")}
+          </p>
+          <p className="mt-1">
+            generated_assets: {runtimeVfxGeneratedAssets.length}
+          </p>
+          {runtimeVfxWarnings.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-100">
+              {runtimeVfxWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {runtimeVfxError ? (
+        <div className="mt-3">
+          <ErrorPanel
+            message={runtimeVfxError}
+            onRetry={playableSpec ? handleGenerateRuntimeVfx : undefined}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
 
   return (
     <main className="editor-shell">
@@ -746,54 +1012,11 @@ function HomePage() {
               />
             ) : (
               <>
-                <HeroResultPanel hero={heroDesign} isLoading={isGeneratingHero} />
-                <section className="ue-panel mt-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-[#e6e8eb]">
-                        Playable Demo
-                      </h3>
-                      <p className="mt-1 text-sm text-[#747b88]">
-                        当前 Playtest 使用：
-                        {playableSpec ? "当前英雄" : "默认测试英雄"}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        className="ue-button"
-                        disabled={!heroDesign || playableSpecStatus === "generating"}
-                        onClick={() => void handleGeneratePlayableSpec()}
-                        type="button"
-                      >
-                        {playableSpecStatus === "generating"
-                          ? "正在生成试玩配置..."
-                          : playableSpec
-                            ? "重新生成试玩配置"
-                            : "生成试玩配置"}
-                      </button>
-                      {playableSpec ? (
-                        <button
-                          className="ue-button-primary"
-                          onClick={() => setActiveView("playtest")}
-                          type="button"
-                        >
-                          进入 Playtest
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                  {playableSpecStatus === "ready" ? (
-                    <p className="mt-2 text-sm text-[#86efac]">试玩配置已生成</p>
-                  ) : null}
-                  {playableSpecError ? (
-                    <div className="mt-3">
-                      <ErrorPanel
-                        message={playableSpecError}
-                        onRetry={heroDesign ? handleGeneratePlayableSpec : undefined}
-                      />
-                    </div>
-                  ) : null}
-                </section>
+                <HeroResultPanel
+                  headerAside={heroDesign ? playableDemoPanel : null}
+                  hero={heroDesign}
+                  isLoading={isGeneratingHero}
+                />
               </>
             )}
           </section>
@@ -806,6 +1029,7 @@ function HomePage() {
               </p>
             </div>
             <VfxBreakdownPanel
+              headerAside={vfxDesigns.length > 0 ? runtimeVfxPanel : null}
               vfxDesigns={vfxDesigns}
               isLoading={isGeneratingVfx}
               errorMessage={vfxGenerateError}
@@ -838,6 +1062,9 @@ function HomePage() {
                   : undefined
               }
             />
+            {vfxDesigns.length === 0 ? (
+              <div className="mt-3">{runtimeVfxPanel}</div>
+            ) : null}
           </section>
 
           <section className={viewClass("projects")} aria-label="Projects">
@@ -882,6 +1109,7 @@ function HomePage() {
                 errorMessage={exportError}
                 exportResult={exportResult}
                 hasPlayableSpec={Boolean(playableSpec)}
+                hasRuntimeVfxAssetSpec={Boolean(activeRuntimeVfxAssetSpec)}
                 onDownload={() => void handleDownloadExport()}
                 onExport={(options) => void handleExportProject(options)}
                 onGoToPlayableSpec={() => setActiveView("blueprint")}
@@ -896,6 +1124,7 @@ function HomePage() {
               <PlaytestView
                 playableSpec={playableSpec}
                 playableSpecSource={playableSpec ? "current_project" : "default"}
+                runtimeVfxAssetSpec={activeRuntimeVfxAssetSpec}
               />
             ) : null}
           </section>

@@ -2,6 +2,7 @@ import type { SkillSpec } from "../../specs/playableSpecTypes";
 import type { GameEvent, GameState, ProjectileState, Vec2 } from "../types";
 import { applyDamageToEnemy } from "../damage";
 import { isCircleHit } from "../collision";
+import { applyStatusEffectsToEnemy } from "../statusEffects";
 import { addVec2, normalizeVec2, scaleVec2, subVec2 } from "../vector";
 
 export function castProjectileSkill(
@@ -19,6 +20,7 @@ export function castProjectileSkill(
     radius: skill.radius ?? 0,
     damage: skill.damage ?? 0,
     remaining_range: skill.range ?? 0,
+    status_effects: skill.status_effects ?? [],
     is_alive: true,
   };
 
@@ -62,6 +64,13 @@ export function updateProjectiles(state: GameState, delta_time: number): GameEve
             remaining_hp: damageEvent.remaining_hp,
           });
         }
+        events.push(
+          ...applyStatusEffectsToEnemy(
+            enemy,
+            projectile.status_effects,
+            projectile.skill_slot,
+          ),
+        );
         events.push({
           type: "projectile_hit",
           projectile_id: projectile.id,

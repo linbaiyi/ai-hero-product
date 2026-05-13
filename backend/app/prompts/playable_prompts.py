@@ -23,7 +23,7 @@ Input hero design:
 Hard requirements:
 1. version must be "1.0".
 2. skills must contain exactly four skills with slots Q, W, E, R.
-3. skill type must be one of: projectile, aoe, aoe_dot, dash, buff.
+3. skill type must be one of: projectile, aoe, aoe_dot, dash, buff, summon.
 4. runtime must be:
    control_scheme: "wasd_mouse"
    camera: "third_person_follow"
@@ -37,6 +37,9 @@ Hard requirements:
     max_hp 500-2000, move_speed 3-9, attack_damage 0-120, attack_range 0-10,
     cooldown 0-60, resource_cost 0-100, damage 0-400, range 0-20,
     radius 0-8, speed 0-30, duration 0-10, tick_interval 0.25-3, distance 0-10.
+11. If the design mentions burn, poison, slow, mark, stun, ignite, 灼烧, 燃烧, 中毒, 标记,
+    express that as status_effects on the relevant skill. Supported status_effects:
+    burn, poison, slow, mark, stun.
 
 Skill required fields:
 - projectile: damage, range, radius, speed
@@ -44,5 +47,6 @@ Skill required fields:
 - aoe_dot: damage, radius, duration, tick_interval
 - dash: distance
 - buff: duration
+- summon: duration; optional damage, radius, range, tick_interval
 
 Return only one JSON object matching HeroPlayableSpec v1."""

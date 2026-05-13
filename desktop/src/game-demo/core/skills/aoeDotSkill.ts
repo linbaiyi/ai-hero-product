@@ -1,6 +1,8 @@
 import type { SkillSpec } from "../../specs/playableSpecTypes";
 import type { GameEvent, GameState, Vec2, ZoneState } from "../types";
 import { applyDamageToEnemiesInRadius } from "../damage";
+import { findEnemiesInRadius } from "../collision";
+import { applyStatusEffectsToEnemy } from "../statusEffects";
 
 export function castAoeDotSkill(
   state: GameState,
@@ -16,6 +18,7 @@ export function castAoeDotSkill(
     duration_remaining: skill.duration ?? 0,
     tick_interval: skill.tick_interval ?? 1,
     tick_timer: skill.tick_interval ?? 1,
+    status_effects: skill.status_effects ?? [],
     is_alive: true,
   };
 
@@ -50,6 +53,9 @@ export function updateAoeDotZones(state: GameState, delta_time: number): GameEve
           amount: event.amount,
           remaining_hp: event.remaining_hp,
         });
+      }
+      for (const enemy of findEnemiesInRadius(state.enemies, zone.center, zone.radius)) {
+        events.push(...applyStatusEffectsToEnemy(enemy, zone.status_effects, zone.skill_slot));
       }
       events.push({ type: "zone_tick", zone_id: zone.id, hit_enemy_ids: hitEnemyIds });
       zone.tick_timer += zone.tick_interval;

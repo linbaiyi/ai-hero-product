@@ -1,8 +1,9 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+﻿import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { generatePlayableSpec } from "../src/api/playableApi";
 import { defaultPlayableSpec } from "../src/game-demo/specs/defaultPlayableSpec";
 import type { HeroPlayableSpec } from "../src/game-demo/specs/playableSpecTypes";
+import { defaultRuntimeVfxAssetSpec } from "../src/game-demo/vfx-assets/defaultRuntimeVfxAssetSpec";
 import PlaytestView from "../src/game-demo/playtest/PlaytestView";
 import HomePage from "../src/pages/HomePage";
 import type {
@@ -43,6 +44,11 @@ vi.mock("../src/game-demo/playtest/playtestRuntime", () => {
     resource: spec.hero.max_resource,
     max_resource: spec.hero.max_resource,
     resource_type: spec.hero.resource_type,
+    runtime_vfx_enabled: false,
+    runtime_vfx_composition_enabled: false,
+    runtime_vfx_warnings: [],
+    runtime_vfx_instance_count: 0,
+    no_cooldown_enabled: false,
     skills: spec.skills.map((skill: any) => ({
       slot: skill.slot,
       name: skill.name,
@@ -53,18 +59,27 @@ vi.mock("../src/game-demo/playtest/playtestRuntime", () => {
   return {
     PlaytestRuntime: class {
       private readonly spec: any;
+      private readonly runtimeVfxAssetSpec: any;
 
-      constructor(_container: HTMLElement, options: { spec: any }) {
+      constructor(_container: HTMLElement, options: { spec: any; runtimeVfxAssetSpec?: any }) {
         this.spec = options.spec;
+        this.runtimeVfxAssetSpec = options.runtimeVfxAssetSpec;
       }
 
       getStateSnapshot() {
-        return makeSnapshot(this.spec);
+        return {
+          ...makeSnapshot(this.spec),
+          runtime_vfx_enabled: Boolean(this.runtimeVfxAssetSpec),
+          runtime_vfx_composition_enabled: Boolean(this.runtimeVfxAssetSpec),
+          runtime_vfx_instance_count: this.runtimeVfxAssetSpec ? 3 : 0,
+        };
       }
 
       reset() {
         return {};
       }
+
+      setNoCooldownEnabled() {}
 
       dispose() {}
     },
@@ -219,10 +234,35 @@ describe("Playtest playable spec integration", () => {
     expect(screen.getByText("Solar Warden")).toBeInTheDocument();
   });
 
+  it("PlaytestView without runtimeVfxAssetSpec shows fallback text", () => {
+    render(<PlaytestView playableSpec={defaultPlayableSpec} />);
+
+    expect(screen.getByText("Runtime VFX: fallback geometry active")).toBeInTheDocument();
+  });
+
+  it("PlaytestView with runtimeVfxAssetSpec shows runtime texture enabled text", () => {
+    render(
+      <PlaytestView
+        playableSpec={defaultPlayableSpec}
+        runtimeVfxAssetSpec={defaultRuntimeVfxAssetSpec}
+      />,
+    );
+
+    expect(screen.getByText("Runtime VFX: texture + procedural enabled")).toBeInTheDocument();
+  });
+
+  it("PlaytestView can toggle no cooldown mode", () => {
+    render(<PlaytestView playableSpec={defaultPlayableSpec} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "无 CD：关" }));
+
+    expect(screen.getByRole("button", { name: "无 CD：开" })).toBeInTheDocument();
+  });
+
   it("HomePage Blueprint can generate playable spec and Playtest uses it", async () => {
     render(<HomePage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /打开|鎵撳紑/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /打开|Open/ }));
     expect(await screen.findByText("生成试玩配置")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "生成试玩配置" }));
@@ -248,7 +288,7 @@ describe("Playtest playable spec integration", () => {
 
     render(<HomePage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /打开|鎵撳紑/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /打开|Open/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Playtest" }));
 
     expect(await screen.findByText("当前英雄试玩：Solar Warden")).toBeInTheDocument();
@@ -262,7 +302,7 @@ describe("Playtest playable spec integration", () => {
 
     render(<HomePage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /打开|鎵撳紑/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /打开|Open/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Playtest" }));
 
     expect(await screen.findByText("默认测试英雄：Flame Guardian")).toBeInTheDocument();

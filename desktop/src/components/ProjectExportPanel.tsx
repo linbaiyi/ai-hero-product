@@ -8,6 +8,7 @@ import type {
 type ProjectExportPanelProps = {
   projectId?: string | null;
   hasPlayableSpec?: boolean;
+  hasRuntimeVfxAssetSpec?: boolean;
   status: ProjectExportStatusType;
   errorMessage?: string | null;
   exportResult?: ExportProjectResult | null;
@@ -22,11 +23,13 @@ const defaultOptions: ExportProjectRequest = {
   include_images: true,
   include_board: true,
   include_playable: true,
+  include_runtime_vfx: false,
 };
 
 function ProjectExportPanel({
   projectId = null,
   hasPlayableSpec = false,
+  hasRuntimeVfxAssetSpec = false,
   status,
   errorMessage = null,
   exportResult = null,
@@ -75,6 +78,11 @@ function ProjectExportPanel({
           {options.include_playable ? (
             <PlayableExportSuccess hasPlayableSpec={hasPlayableSpec} />
           ) : null}
+          {options.include_runtime_vfx ? (
+            <RuntimeVfxExportSuccess
+              hasRuntimeVfxAssetSpec={hasRuntimeVfxAssetSpec}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -117,6 +125,16 @@ function ProjectExportPanel({
             onGoToPlayableSpec={onGoToPlayableSpec}
           />
         ) : null}
+        <ExportOption
+          checked={Boolean(options.include_runtime_vfx)}
+          label="包含运行时贴图资产"
+          onChange={handleOptionChange("include_runtime_vfx")}
+        />
+        {projectId && options.include_runtime_vfx ? (
+          <RuntimeVfxExportHint
+            hasRuntimeVfxAssetSpec={hasRuntimeVfxAssetSpec}
+          />
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -140,6 +158,57 @@ function ProjectExportPanel({
         )}
       </div>
     </section>
+  );
+}
+
+function RuntimeVfxExportHint({
+  hasRuntimeVfxAssetSpec,
+}: {
+  hasRuntimeVfxAssetSpec: boolean;
+}) {
+  if (hasRuntimeVfxAssetSpec) {
+    return (
+      <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+        <p className="font-semibold">运行时贴图资产已就绪</p>
+        <p className="mt-2 text-cyan-100/90">导出包将包含：</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5 text-cyan-100/80">
+          <li>playable/runtime_vfx/README.md</li>
+          <li>playable/runtime_vfx/runtime_vfx_asset_spec.json</li>
+          <li>playable/runtime_vfx/textures/</li>
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs text-amber-100">
+      <p className="font-semibold">尚未生成运行时贴图资产</p>
+      <p className="mt-2">
+        当前项目尚未生成 runtime_vfx_asset_spec，导出包不会包含运行时贴图配置和 textures。
+      </p>
+    </div>
+  );
+}
+
+function RuntimeVfxExportSuccess({
+  hasRuntimeVfxAssetSpec,
+}: {
+  hasRuntimeVfxAssetSpec: boolean;
+}) {
+  if (hasRuntimeVfxAssetSpec) {
+    return (
+      <div className="mt-3 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+        <p className="font-semibold">已包含运行时贴图资产</p>
+        <p className="mt-1">可在 ZIP 的 playable/runtime_vfx/ 目录查看。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 text-xs text-amber-100">
+      <p className="font-semibold">当前项目尚未生成 runtime_vfx_asset_spec</p>
+      <p className="mt-1">导出包不会包含运行时贴图配置和 textures。</p>
+    </div>
   );
 }
 

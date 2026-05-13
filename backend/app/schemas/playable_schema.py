@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 SkillSlot = Literal["Q", "W", "E", "R"]
-SkillType = Literal["projectile", "aoe", "aoe_dot", "dash", "buff"]
+SkillType = Literal["projectile", "aoe", "aoe_dot", "dash", "buff", "summon"]
+StatusEffectType = Literal["burn", "poison", "slow", "mark", "stun"]
 VfxTheme = Literal[
     "fire",
     "ice",
@@ -53,6 +54,14 @@ class VfxSpec(BaseModel):
         return value.strip()
 
 
+class SkillStatusEffectSpec(BaseModel):
+    type: StatusEffectType
+    duration: float = Field(gt=0)
+    tick_interval: float | None = Field(default=None, gt=0)
+    damage: float | None = Field(default=None, ge=0)
+    value: float | None = Field(default=None, ge=0)
+
+
 class SkillSpec(BaseModel):
     slot: SkillSlot
     name: str
@@ -66,6 +75,7 @@ class SkillSpec(BaseModel):
     duration: float | None = Field(default=None, ge=0)
     tick_interval: float | None = Field(default=None, gt=0)
     distance: float | None = Field(default=None, ge=0)
+    status_effects: list[SkillStatusEffectSpec] = Field(default_factory=list)
     description: str
     vfx: VfxSpec
 
@@ -84,6 +94,7 @@ class SkillSpec(BaseModel):
             "aoe_dot": ["damage", "radius", "duration", "tick_interval"],
             "dash": ["distance"],
             "buff": ["duration"],
+            "summon": ["duration"],
         }
         missing = [
             field_name

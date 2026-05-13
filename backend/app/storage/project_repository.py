@@ -47,7 +47,7 @@ class ProjectRepository:
             raise FileNotFoundError(safe_project_id)
 
         data = json.loads(file_path.read_text(encoding="utf-8"))
-        return ProjectRecord.model_validate(data)
+        return _validate_project_record_for_read(data)
 
     def list_projects(self) -> list[ProjectSummary]:
         project_dir = self._project_dir()
@@ -55,7 +55,7 @@ class ProjectRepository:
 
         for file_path in project_dir.glob("*.json"):
             try:
-                record = ProjectRecord.model_validate(
+                record = _validate_project_record_for_read(
                     json.loads(file_path.read_text(encoding="utf-8"))
                 )
             except Exception:
@@ -106,3 +106,15 @@ def _record_to_summary(record: ProjectRecord) -> ProjectSummary:
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _validate_project_record_for_read(data: dict) -> ProjectRecord:
+    try:
+        return ProjectRecord.model_validate(data)
+    except Exception as exc:
+        if not data.get("runtime_vfx_asset_spec"):
+            raise exc
+
+        legacy_data = dict(data)
+        legacy_data["runtime_vfx_asset_spec"] = None
+        return ProjectRecord.model_validate(legacy_data)

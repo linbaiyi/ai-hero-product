@@ -115,3 +115,73 @@ Backend test command usually starts from:
 cd backend
 python -m pytest
 ```
+
+## Runtime VFX Asset Pipeline
+
+The Runtime VFX Asset pipeline is used to convert skill visual designs into runtime texture assets that can be loaded by the Playtest renderer.
+
+Important principles:
+
+- Display images and runtime textures are different assets.
+- Skill preview images and final design boards are for presentation.
+- Runtime VFX textures are for Playtest rendering.
+- Do not directly use the final design board as a runtime texture.
+- Do not directly inject generated image prompts or generated images into runtime code.
+- AI may generate texture prompts, image assets, and structured asset specs, but must not generate executable runtime code.
+- Runtime must only read structured JSON fields.
+- Runtime must never execute eval, Function, remote scripts, or arbitrary code from generated data.
+- If runtime textures are missing or fail to load, Playtest must fallback to existing geometry/material effects.
+- RuntimeVfxAssetSpec is separate from HeroPlayableSpec.
+- HeroPlayableSpec describes gameplay logic.
+- RuntimeVfxAssetSpec describes visual texture assets.
+- The two specs should align through hero_id, skill slot, and skill_type.
+
+Reference files:
+
+- docs/playable/RuntimeVfxAssetSpec.v1.md
+- docs/playable/RuntimeVfxAssetSpec.example.json
+
+## Runtime VFX Development Plan
+
+Runtime VFX should be developed in stages:
+
+1. RuntimeVfxAssetSpec protocol documentation.
+2. Backend Pydantic schema and pytest validation.
+3. Desktop/frontend RuntimeVfxAssetSpec validation and normalization.
+4. Runtime VFX prompt generation.
+5. Runtime texture image generation.
+6. Runtime texture asset saving and project export.
+7. Three.js texture loader and texture VFX renderer.
+8. Playtest integration with fallback behavior.
+
+Do not skip directly to Playtest texture rendering before schema validation exists.
+
+## Runtime Texture Prompt Rules
+
+Runtime texture generation prompts should emphasize:
+
+- transparent background
+- isolated game VFX texture asset
+- single effect element
+- centered composition
+- no character
+- no environment
+- no text
+- no logo
+- no watermark
+- clean alpha edges
+- additive blending style
+- PNG with alpha when supported
+
+If the image provider does not support transparency, black-background textures with additive blending may be used as a temporary fallback.
+
+## Runtime VFX Scope Control
+
+For Runtime VFX tasks:
+
+- Do not modify HeroPlayableSpec unless explicitly requested.
+- Do not modify Game Core or Skill System logic unless the task explicitly requires it.
+- Do not modify Playtest Runtime until RuntimeVfxAssetSpec schema and desktop validation are complete.
+- Do not add image-generation API calls during schema-only tasks.
+- Do not introduce shader systems, sprite sheets, particle emitters, or model assets in v1 unless explicitly requested.
+- Keep v1 focused on static PNG textures plus simple procedural animation such as scale, rotation, fade, and follow behavior.

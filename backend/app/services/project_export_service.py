@@ -6,6 +6,7 @@ from app.schemas.export_schema import ExportProjectRequest, ExportProjectResult
 from app.schemas.project_schema import ProjectRecord
 from app.storage.file_storage import (
     get_export_file_path,
+    resolve_runtime_vfx_file,
     resolve_output_file,
     sanitize_file_name,
     sanitize_project_id,
@@ -124,6 +125,9 @@ class ProjectExportService:
 
                 if req.include_playable:
                     _add_playable_to_zip(archive, record)
+
+                if req.include_runtime_vfx:
+                    _add_runtime_vfx_to_zip(archive, record)
         except Exception as exc:
             return ExportProjectResult(
                 project_id=safe_project_id,
@@ -272,6 +276,45 @@ def _add_playable_to_zip(archive: zipfile.ZipFile, record: ProjectRecord) -> Non
         )
 
 
+def _add_runtime_vfx_to_zip(archive: zipfile.ZipFile, record: ProjectRecord) -> None:
+    warnings: list[str] = []
+
+    if record.runtime_vfx_asset_spec is None:
+        archive.writestr(
+            "playable/runtime_vfx/README.md",
+            _build_runtime_vfx_readme(record, ["当前项目尚未生成 runtime_vfx_asset_spec。"]),
+        )
+        return
+
+    archive.writestr(
+        "playable/runtime_vfx/runtime_vfx_asset_spec.json",
+        json.dumps(
+            record.runtime_vfx_asset_spec.model_dump(),
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
+
+    used_names: set[str] = set()
+    for slot, skill in record.runtime_vfx_asset_spec.skills.items():
+        for asset_key, asset in skill.assets.items():
+            source_path = _existing_runtime_vfx_file(asset.path)
+            if source_path is None:
+                warnings.append(f"Missing or unsafe texture: {slot} {asset_key} -> {asset.path}")
+                continue
+
+            safe_name = sanitize_file_name(f"{slot}_{asset.usage}.png")
+            if safe_name in used_names:
+                safe_name = sanitize_file_name(f"{slot}_{asset_key}_{asset.usage}.png")
+            used_names.add(safe_name)
+            archive.write(source_path, f"playable/runtime_vfx/textures/{safe_name}")
+
+    archive.writestr(
+        "playable/runtime_vfx/README.md",
+        _build_runtime_vfx_readme(record, warnings),
+    )
+
+
 def _build_playable_readme(record: ProjectRecord) -> str:
     lines = [
         "# Playable Hero Demo Package",
@@ -342,9 +385,73 @@ def _build_playable_readme(record: ProjectRecord) -> str:
     return "\n".join(lines)
 
 
+def _build_runtime_vfx_readme(record: ProjectRecord, warnings: list[str]) -> str:
+    lines = [
+        "# Runtime VFX Texture Assets",
+        "",
+        "## Contents",
+        "",
+        "- `runtime_vfx_asset_spec.json`: Structured runtime texture asset mapping.",
+        "- `textures/`: Generated runtime texture PNG files when available.",
+        "- `README.md`: Runtime texture usage notes.",
+        "",
+        "## Asset Usage",
+        "",
+        "- `projectile`: 弹道主体。",
+        "- `impact`: 命中爆炸 / 冲击。",
+        "- `ground_decal`: 地面范围 / 法阵。",
+        "- `aura`: buff 光环。",
+        "- `trail`: 拖尾。",
+        "",
+        "## Runtime Notes",
+        "",
+        "These textures are for the Playtest Renderer.",
+        "They are not display images or final design board images.",
+        "The client should load them according to RuntimeVfxAssetSpec.",
+        "Missing textures should fallback to default geometry/material effects.",
+        "",
+        "## Safety",
+        "",
+        "- Do not execute scripts from this package.",
+        "- Do not load remote code.",
+        "- Texture paths must be safe relative paths.",
+        "",
+    ]
+
+    if record.runtime_vfx_asset_spec is None:
+        lines.extend(
+            [
+                "## Runtime VFX Spec",
+                "",
+                "当前项目尚未生成 runtime_vfx_asset_spec。",
+                "",
+            ]
+        )
+
+    if warnings:
+        lines.extend(["## Warnings", ""])
+        for warning in warnings:
+            lines.append(f"- {warning}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
 def _existing_output_file(path: str) -> Path | None:
     try:
         source_path = resolve_output_file(path)
+    except (ValueError, PermissionError):
+        return None
+
+    if not source_path.exists() or not source_path.is_file():
+        return None
+
+    return source_path
+
+
+def _existing_runtime_vfx_file(path: str) -> Path | None:
+    try:
+        source_path = resolve_runtime_vfx_file(path)
     except (ValueError, PermissionError):
         return None
 

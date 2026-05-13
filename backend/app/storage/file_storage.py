@@ -7,6 +7,7 @@ IMAGE_OUTPUT_ROOT = OUTPUT_ROOT / "images"
 BOARD_OUTPUT_ROOT = OUTPUT_ROOT / "boards"
 PROJECT_OUTPUT_ROOT = OUTPUT_ROOT / "projects"
 EXPORT_OUTPUT_ROOT = OUTPUT_ROOT / "exports"
+RUNTIME_VFX_OUTPUT_ROOT = OUTPUT_ROOT / "runtime_vfx"
 
 
 def ensure_output_dirs() -> None:
@@ -14,6 +15,7 @@ def ensure_output_dirs() -> None:
     BOARD_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     PROJECT_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     EXPORT_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    RUNTIME_VFX_OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def sanitize_project_id(project_id: str) -> str:
@@ -91,6 +93,22 @@ def get_export_output_dir(project_id: str) -> Path:
     return output_dir
 
 
+def get_runtime_vfx_output_dir(relative_base: str) -> Path:
+    ensure_output_dirs()
+    normalized = relative_base.replace("\\", "/")
+    if normalized.startswith("runtime_vfx/"):
+        normalized = normalized.removeprefix("runtime_vfx/")
+
+    safe_parts = [sanitize_project_id(part) for part in normalized.split("/") if part]
+    output_dir = (RUNTIME_VFX_OUTPUT_ROOT.joinpath(*safe_parts)).resolve()
+
+    if not output_dir.is_relative_to(RUNTIME_VFX_OUTPUT_ROOT.resolve()):
+        raise ValueError("Runtime VFX output path cannot escape outputs/runtime_vfx")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    return output_dir
+
+
 def get_export_file_path(project_id: str) -> Path:
     export_dir = get_export_output_dir(project_id)
     safe_project_id = sanitize_project_id(project_id)
@@ -114,5 +132,29 @@ def resolve_output_file(file_path: str) -> Path:
 
     if not requested_path.is_relative_to(OUTPUT_ROOT.resolve()):
         raise PermissionError("只能访问 outputs 目录下的文件")
+
+    return requested_path
+
+
+def resolve_runtime_vfx_file(file_path: str) -> Path:
+    normalized = file_path.replace("\\", "/")
+    lower = normalized.lower()
+    if lower.startswith(("http://", "https://", "javascript:")):
+        raise ValueError("Runtime VFX path must be a local relative path")
+    if Path(normalized).is_absolute():
+        raise ValueError("Runtime VFX path must not be absolute")
+    if ".." in Path(normalized).parts or ".." in normalized.split("/"):
+        raise ValueError("Runtime VFX path must not contain parent traversal")
+
+    if normalized.startswith("outputs/runtime_vfx/"):
+        normalized = normalized.removeprefix("outputs/")
+    if not normalized.startswith("runtime_vfx/"):
+        raise ValueError("Runtime VFX path must be under runtime_vfx")
+
+    requested_path = (OUTPUT_ROOT / normalized).resolve()
+    runtime_root = RUNTIME_VFX_OUTPUT_ROOT.resolve()
+
+    if not requested_path.is_relative_to(runtime_root):
+        raise PermissionError("Runtime VFX files must stay under outputs/runtime_vfx")
 
     return requested_path

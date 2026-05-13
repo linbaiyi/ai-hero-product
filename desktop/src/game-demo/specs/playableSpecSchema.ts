@@ -5,7 +5,9 @@ import type {
   RuntimeSpec,
   SkillSlot,
   SkillSpec,
+  SkillStatusEffectSpec,
   SkillType,
+  StatusEffectType,
   VfxShape,
   VfxSpec,
   VfxTheme,
@@ -16,7 +18,14 @@ export type ValidationResult<T> =
   | { success: false; data?: undefined; errors: string[] };
 
 const SKILL_SLOTS = ["Q", "W", "E", "R"] as const;
-const SKILL_TYPES = ["projectile", "aoe", "aoe_dot", "dash", "buff"] as const;
+const SKILL_TYPES = [
+  "projectile",
+  "aoe",
+  "aoe_dot",
+  "dash",
+  "buff",
+  "summon",
+] as const;
 const VFX_THEMES = [
   "fire",
   "ice",
@@ -41,6 +50,7 @@ const VFX_SHAPES = [
   "rune",
 ] as const;
 const RESOURCE_TYPES = ["mana", "energy", "rage", "none"] as const;
+const STATUS_EFFECT_TYPES = ["burn", "poison", "slow", "mark", "stun"] as const;
 
 export const playableSpecSchema = {
   skill_slots: SKILL_SLOTS,
@@ -48,6 +58,7 @@ export const playableSpecSchema = {
   vfx_themes: VFX_THEMES,
   vfx_shapes: VFX_SHAPES,
   resource_types: RESOURCE_TYPES,
+  status_effect_types: STATUS_EFFECT_TYPES,
 };
 
 export function validatePlayableSpec(
@@ -228,6 +239,11 @@ function validateSkill(
     errors,
     "nonnegative",
   );
+  const status_effects = validateStatusEffects(
+    skill.status_effects,
+    `${path}.status_effects`,
+    errors,
+  );
   const description = requiredText(skill.description, `${path}.description`, errors);
   const vfx = validateVfx(skill.vfx, `${path}.vfx`, errors);
 
@@ -253,6 +269,7 @@ function validateSkill(
     duration === null ||
     tick_interval === null ||
     distance === null ||
+    status_effects === null ||
     !description ||
     !vfx
   ) {
@@ -272,9 +289,72 @@ function validateSkill(
     duration,
     tick_interval,
     distance,
+    status_effects,
     description,
     vfx,
   });
+}
+
+function validateStatusEffects(
+  input: unknown,
+  path: string,
+  errors: string[],
+): SkillStatusEffectSpec[] | undefined | null {
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+  if (!Array.isArray(input)) {
+    errors.push(`${path} must be an array`);
+    return null;
+  }
+
+  const result: SkillStatusEffectSpec[] = [];
+  for (const [index, rawEffect] of input.entries()) {
+    const effect = objectValue(rawEffect, `${path}[${index}]`, errors);
+    if (!effect) {
+      continue;
+    }
+
+    const type = enumValue<StatusEffectType>(
+      effect.type,
+      STATUS_EFFECT_TYPES,
+      `${path}[${index}].type`,
+      errors,
+    );
+    const duration = positiveNumber(effect.duration, `${path}[${index}].duration`, errors);
+    const tick_interval = optionalNumber(
+      effect.tick_interval,
+      `${path}[${index}].tick_interval`,
+      errors,
+      "positive",
+    );
+    const damage = optionalNumber(
+      effect.damage,
+      `${path}[${index}].damage`,
+      errors,
+      "nonnegative",
+    );
+    const value = optionalNumber(
+      effect.value,
+      `${path}[${index}].value`,
+      errors,
+      "nonnegative",
+    );
+
+    if (
+      !type ||
+      duration === null ||
+      tick_interval === null ||
+      damage === null ||
+      value === null
+    ) {
+      continue;
+    }
+
+    result.push(omitUndefined({ type, duration, tick_interval, damage, value }));
+  }
+
+  return errors.length > 0 ? null : result;
 }
 
 function validateVfx(
@@ -362,6 +442,7 @@ function requireSkillTypeFields(
     aoe_dot: ["damage", "radius", "duration", "tick_interval"],
     dash: ["distance"],
     buff: ["duration"],
+    summon: ["duration"],
   };
 
   for (const field of requiredByType[type]) {

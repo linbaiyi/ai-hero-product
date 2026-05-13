@@ -1,6 +1,8 @@
 import type { SkillSpec } from "../../specs/playableSpecTypes";
 import type { GameEvent, GameState, Vec2 } from "../types";
 import { applyDamageToEnemiesInRadius } from "../damage";
+import { findEnemiesInRadius } from "../collision";
+import { applyStatusEffectsToEnemy } from "../statusEffects";
 import { addVec2, normalizeVec2, scaleVec2, subVec2 } from "../vector";
 import { clampPositionToBounds } from "../world";
 
@@ -31,6 +33,9 @@ export function castDashSkill(
         amount: event.amount,
         remaining_hp: event.remaining_hp,
       });
+    }
+    for (const enemy of findEnemiesInRadius(state.enemies, to, skill.radius ?? 1.5)) {
+      events.push(...applyStatusEffectsToEnemy(enemy, skill.status_effects, skill.slot));
     }
   }
 

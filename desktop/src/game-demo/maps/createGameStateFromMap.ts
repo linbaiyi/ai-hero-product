@@ -44,6 +44,7 @@ export function createInitialGameStateFromSpecAndMap(
     projectiles: [],
     active_zones: [],
     buffs: [],
+    summons: [],
     events: [],
   };
 }

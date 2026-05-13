@@ -197,6 +197,81 @@ def make_playable_spec() -> dict:
     }
 
 
+def make_runtime_vfx_asset_spec(path: str = "runtime_vfx/runtime_test/Q_projectile.png") -> dict:
+    return {
+        "version": "1.0",
+        "hero_id": "test_playable_hero",
+        "map_profile": "default_training_arena",
+        "assets_base_path": "runtime_vfx/",
+        "skills": {
+            "Q": {
+                "skill_name": "Test Bolt",
+                "skill_type": "projectile",
+                "assets": {
+                    "projectile": {
+                        "path": path,
+                        "usage": "projectile",
+                        "blend_mode": "additive",
+                        "render_mode": "sprite",
+                        "scale": 1.2,
+                        "duration": 0.8,
+                        "loop": False,
+                        "color_tint": "#ff5a1f",
+                    }
+                },
+            },
+            "W": {
+                "skill_name": "Test Field",
+                "skill_type": "aoe_dot",
+                "assets": {
+                    "ground_decal": {
+                        "path": "runtime_vfx/runtime_test/W_ground_decal.png",
+                        "usage": "ground_decal",
+                        "blend_mode": "additive",
+                        "render_mode": "ground_plane",
+                        "scale": 4,
+                        "duration": 4,
+                        "loop": True,
+                        "color_tint": "#ff8a2a",
+                    }
+                },
+            },
+            "E": {
+                "skill_name": "Test Dash",
+                "skill_type": "dash",
+                "assets": {
+                    "trail": {
+                        "path": "runtime_vfx/runtime_test/E_trail.png",
+                        "usage": "trail",
+                        "blend_mode": "additive",
+                        "render_mode": "sprite_trail",
+                        "scale": 0.8,
+                        "duration": 0.25,
+                        "loop": False,
+                        "color_tint": "#f97316",
+                    }
+                },
+            },
+            "R": {
+                "skill_name": "Test Meteor",
+                "skill_type": "aoe",
+                "assets": {
+                    "impact": {
+                        "path": "runtime_vfx/runtime_test/R_impact.png",
+                        "usage": "impact",
+                        "blend_mode": "additive",
+                        "render_mode": "sprite",
+                        "scale": 2.5,
+                        "duration": 0.35,
+                        "loop": False,
+                        "color_tint": "#ff3d00",
+                    }
+                },
+            },
+        },
+    }
+
+
 def make_project_save_request(project_id: str = "project_demo", **overrides) -> dict:
     data = {
         "project_id": project_id,

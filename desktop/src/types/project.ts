@@ -1,4 +1,5 @@
 import type { HeroPlayableSpec } from "../game-demo/specs/playableSpecTypes";
+import type { RuntimeVfxAssetSpec } from "../game-demo/vfx-assets/runtimeVfxTypes";
 
 export type HeroGenerateRequest = {
   game_type: string;
@@ -124,6 +125,7 @@ export type ProjectSaveRequest = {
   image_results: ImageGenerationResult[];
   board_result: BoardRenderResult | null;
   playable_spec?: HeroPlayableSpec | null;
+  runtime_vfx_asset_spec?: RuntimeVfxAssetSpec | null;
   llm_provider?: string | null;
   image_provider?: string | null;
 };
@@ -158,6 +160,7 @@ export type ExportProjectRequest = {
   include_images: boolean;
   include_board: boolean;
   include_playable?: boolean;
+  include_runtime_vfx?: boolean;
 };
 
 export type ExportProjectResult = {

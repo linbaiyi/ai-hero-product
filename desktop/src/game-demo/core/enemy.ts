@@ -21,6 +21,7 @@ export function createEnemy(params: CreateEnemyParams): EnemyState {
     hp,
     radius: params.radius ?? 0.75,
     is_alive: hp > 0,
+    status_effects: [],
   };
 }
 

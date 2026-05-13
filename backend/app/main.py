@@ -9,6 +9,8 @@ from app.api.image_routes import router as image_router
 from app.api.image_prompt_routes import router as image_prompt_router
 from app.api.playable_routes import router as playable_router
 from app.api.project_routes import router as project_router
+from app.api.runtime_vfx_generation_routes import router as runtime_vfx_generation_router
+from app.api.runtime_vfx_routes import router as runtime_vfx_router
 from app.api.vfx_routes import router as vfx_router
 from app.config import settings
 
@@ -33,6 +35,8 @@ app.include_router(board_router)
 app.include_router(export_router)
 app.include_router(project_router)
 app.include_router(playable_router)
+app.include_router(runtime_vfx_router)
+app.include_router(runtime_vfx_generation_router)
 
 
 @app.get("/health")

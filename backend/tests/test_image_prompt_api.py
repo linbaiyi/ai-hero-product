@@ -65,6 +65,39 @@ def test_generate_image_prompt_batch_empty_vfx_designs_returns_422():
     assert response.status_code == 422
 
 
+def test_generate_texture_prompt_set_returns_resource_prompts():
+    response = client.post(
+        "/api/image-prompts/generate-texture-set",
+        json={
+            "skill_name": "Flame Bolt",
+            "skill_type": "projectile",
+            "element": "fire",
+            "keywords": ["orange flame"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload["prompts"]) == {"projectile", "trail", "impact", "particle"}
+    assert "transparent background" in payload["prompts"]["projectile"]
+    assert "suitable for Three.js or Babylon.js" in payload["prompts"]["projectile"]
+
+
+def test_generate_texture_prompt_set_from_vfx_returns_resource_prompts():
+    response = client.post(
+        "/api/image-prompts/generate-texture-set-from-vfx",
+        json={
+            "vfx_design": make_vfx_design(),
+            "skill_type": "aoe",
+            "element": "fire",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload["prompts"]) == {"ground_decal", "impact", "particle"}
+
+
 def test_existing_endpoints_still_work():
     assert client.get("/health").status_code == 200
 
