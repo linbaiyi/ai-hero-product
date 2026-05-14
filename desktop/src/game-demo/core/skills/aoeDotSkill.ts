@@ -3,6 +3,7 @@ import type { GameEvent, GameState, Vec2, ZoneState } from "../types";
 import { applyDamageToEnemiesInRadius } from "../damage";
 import { findEnemiesInRadius } from "../collision";
 import { applyStatusEffectsToEnemy } from "../statusEffects";
+import { executeSkillEffects } from "../effects/effectExecutor";
 
 export function castAoeDotSkill(
   state: GameState,
@@ -19,6 +20,7 @@ export function castAoeDotSkill(
     tick_interval: skill.tick_interval ?? 1,
     tick_timer: skill.tick_interval ?? 1,
     status_effects: skill.status_effects ?? [],
+    effects: skill.effects ?? [],
     is_alive: true,
   };
 
@@ -58,6 +60,15 @@ export function updateAoeDotZones(state: GameState, delta_time: number): GameEve
         events.push(...applyStatusEffectsToEnemy(enemy, zone.status_effects, zone.skill_slot));
       }
       events.push({ type: "zone_tick", zone_id: zone.id, hit_enemy_ids: hitEnemyIds });
+      events.push(
+        ...executeSkillEffects(
+          state,
+          zoneSkillFromState(zone),
+          zone.effects ?? [],
+          "on_zone_tick",
+          { skill_slot: zone.skill_slot, effect_position: zone.center, zone },
+        ),
+      );
       zone.tick_timer += zone.tick_interval;
 
       if (zone.tick_interval <= 0) {
@@ -66,6 +77,15 @@ export function updateAoeDotZones(state: GameState, delta_time: number): GameEve
     }
 
     if (zone.duration_remaining <= 0) {
+      events.push(
+        ...executeSkillEffects(
+          state,
+          zoneSkillFromState(zone),
+          zone.effects ?? [],
+          "on_zone_expire",
+          { skill_slot: zone.skill_slot, effect_position: zone.center, zone },
+        ),
+      );
       zone.is_alive = false;
     }
   }
@@ -73,6 +93,30 @@ export function updateAoeDotZones(state: GameState, delta_time: number): GameEve
   state.active_zones = state.active_zones.filter((zone) => zone.is_alive);
   state.events.push(...events);
   return events;
+}
+
+function zoneSkillFromState(zone: ZoneState): SkillSpec {
+  return {
+    slot: zone.skill_slot,
+    name: zone.id,
+    type: "aoe_dot",
+    cooldown: 0,
+    resource_cost: 0,
+    damage: zone.damage,
+    radius: zone.radius,
+    duration: zone.duration_remaining,
+    tick_interval: zone.tick_interval,
+    status_effects: zone.status_effects,
+    effects: zone.effects ?? [],
+    description: zone.id,
+    vfx: {
+      theme: "fire",
+      color: "#ff5a1f",
+      shape: "circle_zone",
+      impact: "zone",
+      trail: "zone",
+    },
+  };
 }
 
 function createZoneId(state: GameState): string {

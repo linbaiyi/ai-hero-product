@@ -7,6 +7,35 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 SkillSlot = Literal["Q", "W", "E", "R"]
 SkillType = Literal["projectile", "aoe", "aoe_dot", "dash", "buff", "summon"]
 StatusEffectType = Literal["burn", "poison", "slow", "mark", "stun"]
+SkillEffectTrigger = Literal[
+    "on_cast",
+    "on_projectile_hit",
+    "on_zone_tick",
+    "on_zone_expire",
+    "on_summon_attack",
+    "on_summon_expire",
+    "on_summon_death",
+    "on_status_tick",
+    "on_status_expire",
+]
+SkillEffectAction = Literal[
+    "damage",
+    "aoe_damage",
+    "apply_status",
+    "spawn_zone",
+    "summon",
+    "spawn_projectile",
+    "spawn_vfx_event",
+]
+SkillEffectTarget = Literal[
+    "self",
+    "target_position",
+    "target_enemy",
+    "enemies_in_radius",
+    "projectile_position",
+    "summon_position",
+    "zone_center",
+]
 VfxTheme = Literal[
     "fire",
     "ice",
@@ -62,6 +91,31 @@ class SkillStatusEffectSpec(BaseModel):
     value: float | None = Field(default=None, ge=0)
 
 
+class SkillEffectSpec(BaseModel):
+    trigger: SkillEffectTrigger
+    action: SkillEffectAction
+    target: SkillEffectTarget
+    damage: float | None = Field(default=None, ge=0)
+    radius: float | None = Field(default=None, ge=0)
+    duration: float | None = Field(default=None, ge=0)
+    tick_interval: float | None = Field(default=None, gt=0)
+    status_effects: list[SkillStatusEffectSpec] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def required_fields_for_effect_action(self) -> "SkillEffectSpec":
+        if self.action in {"aoe_damage", "apply_status", "spawn_zone"} and self.radius is None:
+            raise ValueError(f"{self.action} effect missing required field: radius")
+        if self.action in {"damage", "aoe_damage", "spawn_zone"} and self.damage is None:
+            raise ValueError(f"{self.action} effect missing required field: damage")
+        if self.action == "spawn_zone" and (
+            self.duration is None or self.tick_interval is None
+        ):
+            raise ValueError("spawn_zone effect missing required fields: duration, tick_interval")
+        if self.action == "apply_status" and not self.status_effects:
+            raise ValueError("apply_status effect missing required field: status_effects")
+        return self
+
+
 class SkillSpec(BaseModel):
     slot: SkillSlot
     name: str
@@ -76,6 +130,7 @@ class SkillSpec(BaseModel):
     tick_interval: float | None = Field(default=None, gt=0)
     distance: float | None = Field(default=None, ge=0)
     status_effects: list[SkillStatusEffectSpec] = Field(default_factory=list)
+    effects: list[SkillEffectSpec] = Field(default_factory=list)
     description: str
     vfx: VfxSpec
 

@@ -8,5 +8,6 @@ export * from "./damage";
 export * from "./cooldown";
 export * from "./collision";
 export * from "./statusEffects";
+export * from "./effects";
 export * from "./simulation";
 export * from "./skills";

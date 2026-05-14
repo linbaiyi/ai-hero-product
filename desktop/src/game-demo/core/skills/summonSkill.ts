@@ -4,6 +4,7 @@ import { applyDamageToEnemy } from "../damage";
 import { distanceVec2 } from "../vector";
 import { applyStatusEffectsToEnemy } from "../statusEffects";
 import { isActionBlockedByStatus } from "../statusRules";
+import { executeSkillEffects } from "../effects/effectExecutor";
 import type { GameEvent, GameState, SummonState, Vec2 } from "../types";
 
 const DEFAULT_SUMMON_HP = 120;
@@ -32,6 +33,7 @@ export function castSummonSkill(
     attack_timer: 0,
     duration_remaining: skill.duration ?? 0,
     status_effects: skill.status_effects ?? [],
+    effects: skill.effects ?? [],
     is_alive: true,
   };
 
@@ -47,6 +49,20 @@ export function updateSummons(state: GameState, delta_time: number): void {
 
     summon.duration_remaining = Math.max(0, summon.duration_remaining - delta_time);
     if (summon.duration_remaining <= 0 || summon.hp <= 0) {
+      const trigger = summon.hp <= 0 ? "on_summon_death" : "on_summon_expire";
+      state.events.push(
+        ...executeSkillEffects(
+          state,
+          summonSkillFromState(summon),
+          summon.effects ?? [],
+          trigger,
+          {
+            skill_slot: summon.skill_slot,
+            effect_position: summon.position,
+            summon,
+          },
+        ),
+      );
       summon.is_alive = false;
       state.events.push({
         type: "summon_expired",
@@ -94,4 +110,43 @@ function attackNearestEnemy(state: GameState, summon: SummonState): void {
     amount: summon.damage,
     remaining_hp: target.hp,
   });
+  state.events.push(
+    ...executeSkillEffects(
+      state,
+      summonSkillFromState(summon),
+      summon.effects ?? [],
+      "on_summon_attack",
+      {
+        skill_slot: summon.skill_slot,
+        effect_position: summon.position,
+        summon,
+        target_enemy: target,
+      },
+    ),
+  );
+}
+
+function summonSkillFromState(summon: SummonState): SkillSpec {
+  return {
+    slot: summon.skill_slot,
+    name: summon.name,
+    type: "summon",
+    cooldown: 0,
+    resource_cost: 0,
+    damage: summon.damage,
+    range: summon.attack_range,
+    radius: summon.radius,
+    duration: summon.duration_remaining,
+    tick_interval: summon.attack_interval,
+    status_effects: summon.status_effects,
+    effects: summon.effects ?? [],
+    description: summon.name,
+    vfx: {
+      theme: "fire",
+      color: "#ff5a1f",
+      shape: "rune",
+      impact: "summon",
+      trail: "summon",
+    },
+  };
 }

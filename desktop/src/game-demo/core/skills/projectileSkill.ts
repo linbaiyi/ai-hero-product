@@ -1,8 +1,7 @@
 import type { SkillSpec } from "../../specs/playableSpecTypes";
 import type { GameEvent, GameState, ProjectileState, Vec2 } from "../types";
-import { applyDamageToEnemy } from "../damage";
 import { isCircleHit } from "../collision";
-import { applyStatusEffectsToEnemy } from "../statusEffects";
+import { executeSkillEffects } from "../effects/effectExecutor";
 import { addVec2, normalizeVec2, scaleVec2, subVec2 } from "../vector";
 
 export function castProjectileSkill(
@@ -21,6 +20,7 @@ export function castProjectileSkill(
     damage: skill.damage ?? 0,
     remaining_range: skill.range ?? 0,
     status_effects: skill.status_effects ?? [],
+    effects: skill.effects ?? [],
     is_alive: true,
   };
 
@@ -55,27 +55,24 @@ export function updateProjectiles(state: GameState, delta_time: number): GameEve
         continue;
       }
       if (isCircleHit(projectile.position, projectile.radius, enemy.position, enemy.radius)) {
-        const damageEvent = applyDamageToEnemy(enemy, projectile.damage);
-        if (damageEvent) {
-          events.push({
-            type: "damage",
-            enemy_id: damageEvent.enemy_id,
-            amount: damageEvent.amount,
-            remaining_hp: damageEvent.remaining_hp,
-          });
-        }
-        events.push(
-          ...applyStatusEffectsToEnemy(
-            enemy,
-            projectile.status_effects,
-            projectile.skill_slot,
-          ),
-        );
         events.push({
           type: "projectile_hit",
           projectile_id: projectile.id,
           enemy_id: enemy.id,
         });
+        events.push(
+          ...executeSkillEffects(
+            state,
+            projectileSkillFromState(projectile),
+            projectile.effects ?? [],
+            "on_projectile_hit",
+            {
+              skill_slot: projectile.skill_slot,
+              effect_position: projectile.position,
+              target_enemy: enemy,
+            },
+          ),
+        );
         projectile.is_alive = false;
         break;
       }
@@ -93,4 +90,28 @@ export function updateProjectiles(state: GameState, delta_time: number): GameEve
 
 function createProjectileId(state: GameState): string {
   return `projectile_${state.time}_${state.projectiles.length + 1}`;
+}
+
+function projectileSkillFromState(projectile: ProjectileState): SkillSpec {
+  return {
+    slot: projectile.skill_slot,
+    name: projectile.id,
+    type: "projectile",
+    cooldown: 0,
+    resource_cost: 0,
+    damage: projectile.damage,
+    range: projectile.remaining_range,
+    radius: projectile.radius,
+    speed: projectile.speed,
+    status_effects: projectile.status_effects,
+    effects: projectile.effects ?? [],
+    description: projectile.id,
+    vfx: {
+      theme: "fire",
+      color: "#ff5a1f",
+      shape: "fireball",
+      impact: "projectile",
+      trail: "projectile",
+    },
+  };
 }

@@ -167,8 +167,127 @@ def apply_design_mechanic_mapping(
     spec: dict[str, Any],
     hero_design: Any | None,
 ) -> dict[str, Any]:
+    spec = normalize_directional_area_skills(spec, hero_design)
     spec = prefer_summon_skill_when_requested(spec, hero_design)
     return add_status_effects_when_requested(spec, hero_design)
+
+
+def normalize_directional_area_skills(
+    spec: dict[str, Any],
+    hero_design: Any | None,
+) -> dict[str, Any]:
+    skills = spec.get("skills")
+    if not isinstance(skills, list):
+        return spec
+
+    for skill in skills:
+        if not isinstance(skill, dict) or skill.get("type") != "dash":
+            continue
+        if not _skill_is_directional_area_not_self_dash(skill, hero_design):
+            continue
+        _convert_dash_to_directional_projectile(skill)
+    return spec
+
+
+def _skill_is_directional_area_not_self_dash(
+    skill: dict[str, Any],
+    hero_design: Any | None,
+) -> bool:
+    skill_text = _to_searchable_text(
+        {
+            "name": skill.get("name"),
+            "description": skill.get("description"),
+            "tags": skill.get("tags"),
+        }
+    )
+    full_text = f"{skill_text} {_to_searchable_text(hero_design)}"
+    directional_area_terms = [
+        "wave",
+        "shockwave",
+        "flame wave",
+        "fire wave",
+        "flame wall",
+        "wall of fire",
+        "path",
+        "ground",
+        "field",
+        "zone",
+        "area",
+        "推进",
+        "波浪",
+        "火焰波",
+        "冲击波",
+        "路径",
+        "地面",
+        "领域",
+        "区域",
+        "火海",
+        "熔岩",
+    ]
+    self_dash_terms = [
+        "blink",
+        "leap",
+        "charge",
+        "teleport",
+        "self",
+        "hero moves",
+        "hero dashes",
+        "位移",
+        "冲刺",
+        "闪现",
+        "跳跃",
+        "自身",
+        "英雄向前",
+        "英雄冲刺",
+    ]
+    has_directional_area = any(term in full_text for term in directional_area_terms)
+    has_self_dash = any(term in skill_text for term in self_dash_terms)
+    return has_directional_area and not has_self_dash
+
+
+def _convert_dash_to_directional_projectile(skill: dict[str, Any]) -> None:
+    damage = _number_or_default(skill.get("damage"), 80)
+    radius = _number_or_default(skill.get("radius"), 2.5)
+    distance = _number_or_default(skill.get("distance"), 10)
+    duration = _number_or_default(skill.get("duration"), 3)
+    tick_interval = _number_or_default(skill.get("tick_interval"), 1)
+
+    skill["type"] = "projectile"
+    skill["damage"] = damage
+    skill["range"] = max(_number_or_default(skill.get("range"), distance), distance, 8)
+    skill["radius"] = max(radius, 1.5)
+    skill["speed"] = _number_or_default(skill.get("speed"), 14)
+    skill.pop("distance", None)
+    skill["effects"] = [
+        {
+            "trigger": "on_cast",
+            "action": "spawn_projectile",
+            "target": "target_position",
+        },
+        {
+            "trigger": "on_projectile_hit",
+            "action": "damage",
+            "target": "target_enemy",
+            "damage": damage,
+        },
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_zone",
+            "target": "projectile_position",
+            "radius": max(radius, 2.5),
+            "damage": max(4, round(damage * 0.18, 2)),
+            "duration": min(max(duration, 2), 6),
+            "tick_interval": tick_interval,
+            "status_effects": [
+                {
+                    "type": "burn",
+                    "duration": min(max(duration, 2), 5),
+                    "tick_interval": tick_interval,
+                    "damage": max(4, round(damage * 0.1, 2)),
+                }
+            ],
+        },
+    ]
 
 
 def prefer_summon_skill_when_requested(
@@ -396,6 +515,10 @@ def _status_effect_for_skill(skill: dict[str, Any], status_type: str) -> dict[st
         "duration": 1.0,
         "value": 1.0,
     }
+
+
+def _number_or_default(value: Any, fallback: float) -> float:
+    return float(value) if isinstance(value, (int, float)) else float(fallback)
 
 
 def _to_searchable_text(value: Any | None) -> str:

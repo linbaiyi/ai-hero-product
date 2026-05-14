@@ -196,3 +196,50 @@ def test_runtime_supported_values_pass():
     assert spec.runtime.control_scheme == "wasd_mouse"
     assert spec.runtime.camera == "third_person_follow"
     assert spec.runtime.map_profile == "default_training_arena"
+
+
+def test_skill_effects_pass_validation():
+    data = load_example()
+    data["skills"][0]["effects"] = [
+        {
+            "trigger": "on_cast",
+            "action": "spawn_projectile",
+            "target": "target_position",
+        },
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_zone",
+            "target": "projectile_position",
+            "radius": 3,
+            "damage": 10,
+            "duration": 4,
+            "tick_interval": 1,
+            "status_effects": [
+                {
+                    "type": "burn",
+                    "duration": 3,
+                    "tick_interval": 1,
+                    "damage": 6,
+                }
+            ],
+        },
+    ]
+
+    spec = validate(data)
+
+    assert spec.skills[0].effects[1].action == "spawn_zone"
+
+
+def test_invalid_skill_effect_trigger_fails():
+    data = load_example()
+    data["skills"][0]["effects"] = [
+        {
+            "trigger": "after_everything",
+            "action": "damage",
+            "target": "target_enemy",
+            "damage": 10,
+        }
+    ]
+
+    with pytest.raises(ValidationError):
+        validate(data)

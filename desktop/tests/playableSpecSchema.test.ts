@@ -215,6 +215,52 @@ describe("HeroPlayableSpec desktop validation", () => {
     expectInvalid(spec);
   });
 
+  it("skill effects pass validation", () => {
+    const spec = cloneSpec();
+    spec.skills[0].effects = [
+      {
+        trigger: "on_cast",
+        action: "spawn_projectile",
+        target: "target_position",
+      },
+      {
+        trigger: "on_projectile_hit",
+        action: "spawn_zone",
+        target: "projectile_position",
+        radius: 3,
+        damage: 10,
+        duration: 4,
+        tick_interval: 1,
+        status_effects: [
+          {
+            type: "burn",
+            duration: 3,
+            tick_interval: 1,
+            damage: 6,
+          },
+        ],
+      },
+    ];
+
+    const result = validatePlayableSpec(spec);
+
+    expect(result.success).toBe(true);
+  });
+
+  it("invalid skill effect trigger fails", () => {
+    const spec = cloneSpec();
+    spec.skills[0].effects = [
+      {
+        trigger: "after_everything",
+        action: "damage",
+        target: "target_enemy",
+        damage: 10,
+      },
+    ] as never;
+
+    expectInvalid(spec);
+  });
+
   it("normalize sorts skills by QWER", () => {
     const spec = cloneSpec();
     spec.skills = [spec.skills[2], spec.skills[3], spec.skills[1], spec.skills[0]];

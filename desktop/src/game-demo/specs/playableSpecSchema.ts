@@ -4,6 +4,10 @@ import type {
   ResourceType,
   RuntimeSpec,
   SkillSlot,
+  SkillEffectAction,
+  SkillEffectSpec,
+  SkillEffectTarget,
+  SkillEffectTrigger,
   SkillSpec,
   SkillStatusEffectSpec,
   SkillType,
@@ -51,6 +55,35 @@ const VFX_SHAPES = [
 ] as const;
 const RESOURCE_TYPES = ["mana", "energy", "rage", "none"] as const;
 const STATUS_EFFECT_TYPES = ["burn", "poison", "slow", "mark", "stun"] as const;
+const SKILL_EFFECT_TRIGGERS = [
+  "on_cast",
+  "on_projectile_hit",
+  "on_zone_tick",
+  "on_zone_expire",
+  "on_summon_attack",
+  "on_summon_expire",
+  "on_summon_death",
+  "on_status_tick",
+  "on_status_expire",
+] as const;
+const SKILL_EFFECT_ACTIONS = [
+  "damage",
+  "aoe_damage",
+  "apply_status",
+  "spawn_zone",
+  "summon",
+  "spawn_projectile",
+  "spawn_vfx_event",
+] as const;
+const SKILL_EFFECT_TARGETS = [
+  "self",
+  "target_position",
+  "target_enemy",
+  "enemies_in_radius",
+  "projectile_position",
+  "summon_position",
+  "zone_center",
+] as const;
 
 export const playableSpecSchema = {
   skill_slots: SKILL_SLOTS,
@@ -59,6 +92,9 @@ export const playableSpecSchema = {
   vfx_shapes: VFX_SHAPES,
   resource_types: RESOURCE_TYPES,
   status_effect_types: STATUS_EFFECT_TYPES,
+  skill_effect_triggers: SKILL_EFFECT_TRIGGERS,
+  skill_effect_actions: SKILL_EFFECT_ACTIONS,
+  skill_effect_targets: SKILL_EFFECT_TARGETS,
 };
 
 export function validatePlayableSpec(
@@ -244,6 +280,7 @@ function validateSkill(
     `${path}.status_effects`,
     errors,
   );
+  const effects = validateSkillEffects(skill.effects, `${path}.effects`, errors);
   const description = requiredText(skill.description, `${path}.description`, errors);
   const vfx = validateVfx(skill.vfx, `${path}.vfx`, errors);
 
@@ -270,6 +307,7 @@ function validateSkill(
     tick_interval === null ||
     distance === null ||
     status_effects === null ||
+    effects === null ||
     !description ||
     !vfx
   ) {
@@ -290,9 +328,120 @@ function validateSkill(
     tick_interval,
     distance,
     status_effects,
+    effects,
     description,
     vfx,
   });
+}
+
+function validateSkillEffects(
+  input: unknown,
+  path: string,
+  errors: string[],
+): SkillEffectSpec[] | undefined | null {
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+  if (!Array.isArray(input)) {
+    errors.push(`${path} must be an array`);
+    return null;
+  }
+
+  const result: SkillEffectSpec[] = [];
+  for (const [index, rawEffect] of input.entries()) {
+    const effect = objectValue(rawEffect, `${path}[${index}]`, errors);
+    if (!effect) {
+      continue;
+    }
+    const trigger = enumValue<SkillEffectTrigger>(
+      effect.trigger,
+      SKILL_EFFECT_TRIGGERS,
+      `${path}[${index}].trigger`,
+      errors,
+    );
+    const action = enumValue<SkillEffectAction>(
+      effect.action,
+      SKILL_EFFECT_ACTIONS,
+      `${path}[${index}].action`,
+      errors,
+    );
+    const target = enumValue<SkillEffectTarget>(
+      effect.target,
+      SKILL_EFFECT_TARGETS,
+      `${path}[${index}].target`,
+      errors,
+    );
+    const damage = optionalNumber(
+      effect.damage,
+      `${path}[${index}].damage`,
+      errors,
+      "nonnegative",
+    );
+    const radius = optionalNumber(
+      effect.radius,
+      `${path}[${index}].radius`,
+      errors,
+      "nonnegative",
+    );
+    const duration = optionalNumber(
+      effect.duration,
+      `${path}[${index}].duration`,
+      errors,
+      "nonnegative",
+    );
+    const tick_interval = optionalNumber(
+      effect.tick_interval,
+      `${path}[${index}].tick_interval`,
+      errors,
+      "positive",
+    );
+    const status_effects = validateStatusEffects(
+      effect.status_effects,
+      `${path}[${index}].status_effects`,
+      errors,
+    );
+
+    if (
+      !trigger ||
+      !action ||
+      !target ||
+      damage === null ||
+      radius === null ||
+      duration === null ||
+      tick_interval === null ||
+      status_effects === null
+    ) {
+      continue;
+    }
+
+    if (["aoe_damage", "apply_status", "spawn_zone"].includes(action) && radius === undefined) {
+      errors.push(`${path}[${index}].radius is required for ${action}`);
+    }
+    if (["damage", "aoe_damage", "spawn_zone"].includes(action) && damage === undefined) {
+      errors.push(`${path}[${index}].damage is required for ${action}`);
+    }
+    if (action === "spawn_zone" && (duration === undefined || tick_interval === undefined)) {
+      errors.push(`${path}[${index}].duration and tick_interval are required for spawn_zone`);
+    }
+    if (action === "apply_status" && (!status_effects || status_effects.length === 0)) {
+      errors.push(`${path}[${index}].status_effects is required for apply_status`);
+    }
+
+    result.push(
+      omitUndefined({
+        trigger,
+        action,
+        target,
+        damage,
+        radius,
+        duration,
+        tick_interval,
+        status_effects,
+      }),
+    );
+  }
+
+  return errors.length > 0 ? null : result;
 }
 
 function validateStatusEffects(

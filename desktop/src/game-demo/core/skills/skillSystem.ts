@@ -1,13 +1,11 @@
 import type { HeroPlayableSpec, SkillSlot, SkillSpec } from "../../specs/playableSpecTypes";
 import { normalizePlayableSpec } from "../../specs/normalizePlayableSpec";
 import { isCooldownReady, setCooldown } from "../cooldown";
+import { executeSkillEffects } from "../effects/effectExecutor";
+import { getSkillEffects } from "../effects/effectTriggers";
 import type { GameEvent, GameState, Vec2 } from "../types";
-import { castAoeDotSkill } from "./aoeDotSkill";
-import { castAoeSkill } from "./aoeSkill";
 import { castBuffSkill } from "./buffSkill";
 import { castDashSkill } from "./dashSkill";
-import { castProjectileSkill } from "./projectileSkill";
-import { castSummonSkill } from "./summonSkill";
 import type { CastSkillResult } from "./skillTypes";
 import { createFailedResult, createSuccessResult } from "./skillTypes";
 
@@ -38,6 +36,13 @@ export function castSkill(
   }
 
   const skillEvents = castByType(state, skill, target);
+  const effectEvents = executeSkillEffects(
+    state,
+    skill,
+    getSkillEffects(skill),
+    "on_cast",
+    { skill_slot: skill.slot, target_position: target },
+  );
   state.hero.resource = Math.max(0, state.hero.resource - skill.resource_cost);
   setCooldown(state.hero.cooldowns, skill.slot, skill.cooldown);
 
@@ -50,6 +55,7 @@ export function castSkill(
       radius: skill.radius ?? undefined,
     },
     ...skillEvents,
+    ...effectEvents,
   ];
   state.events.push(...events);
   return createSuccessResult(skill.slot, events);
@@ -58,17 +64,14 @@ export function castSkill(
 function castByType(state: GameState, skill: SkillSpec, target: Vec2): GameEvent[] {
   switch (skill.type) {
     case "projectile":
-      return castProjectileSkill(state, skill, target);
     case "aoe":
-      return castAoeSkill(state, skill, target);
     case "aoe_dot":
-      return castAoeDotSkill(state, skill, target);
+    case "summon":
+      return [];
     case "dash":
       return castDashSkill(state, skill, target);
     case "buff":
       return castBuffSkill(state, skill);
-    case "summon":
-      return castSummonSkill(state, skill, target);
   }
 }
 

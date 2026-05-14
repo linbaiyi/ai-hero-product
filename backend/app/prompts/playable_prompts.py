@@ -24,6 +24,9 @@ Hard requirements:
 1. version must be "1.0".
 2. skills must contain exactly four skills with slots Q, W, E, R.
 3. skill type must be one of: projectile, aoe, aoe_dot, dash, buff, summon.
+   Use dash only when the hero itself moves/repositions. A wave, shockwave,
+   flame surge, fire wall, path-burning area, or forward-moving area must not
+   be dash; model it as projectile or aoe_dot with skill.effects.
 4. runtime must be:
    control_scheme: "wasd_mouse"
    camera: "third_person_follow"
@@ -48,9 +51,23 @@ Semantic mapping rules:
 - target should be one of: enemy, enemies_in_radius, summon, hero, ground_zone.
 - damage_rule should describe whether the effect is direct_damage, dot_damage,
   slow_only, mark_damage_taken_bonus, stun_only, or mixed.
-- The final JSON must still match HeroPlayableSpec v1. Encode executable parts
-  in skill.status_effects using only: type, duration, tick_interval, damage, value.
-- Use damage for burn/poison tick damage.
+  - The final JSON must still match HeroPlayableSpec v1. Encode executable parts
+    in skill.status_effects using only: type, duration, tick_interval, damage, value.
+  - For compound mechanics, use skill.effects rather than inventing new skill types.
+  - Supported effects triggers: on_cast, on_projectile_hit, on_zone_tick,
+    on_zone_expire, on_summon_attack, on_summon_expire, on_summon_death,
+    on_status_tick, on_status_expire.
+  - Supported effects actions: damage, aoe_damage, apply_status, spawn_zone,
+    summon, spawn_projectile, spawn_vfx_event.
+  - Supported effects targets: self, target_position, target_enemy,
+    enemies_in_radius, projectile_position, summon_position, zone_center.
+  - Example: "summon explodes when it disappears" should become an
+    on_summon_expire + aoe_damage effect targeting summon_position.
+  - Example: "projectile leaves a burning field on hit" should become an
+    on_projectile_hit + spawn_zone effect targeting projectile_position.
+  - Example: "a flame wave surges forward and burns the path" should not be
+    dash. Use projectile + on_projectile_hit spawn_zone/apply_status effects.
+  - Use damage for burn/poison tick damage.
 - Use value for slow movement reduction, mark damage taken bonus, and stun control strength.
 - Do not invent unsupported scripts or custom behavior.
 

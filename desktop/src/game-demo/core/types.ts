@@ -1,5 +1,6 @@
 import type {
   ResourceType,
+  SkillEffectSpec,
   SkillSlot,
   SkillStatusEffectSpec,
   StatusEffectType,
@@ -84,6 +85,7 @@ export type ProjectileState = {
   damage: number;
   remaining_range: number;
   status_effects: SkillStatusEffectSpec[];
+  effects?: SkillEffectSpec[];
   is_alive: boolean;
 };
 
@@ -97,6 +99,7 @@ export type ZoneState = {
   tick_interval: number;
   tick_timer: number;
   status_effects: SkillStatusEffectSpec[];
+  effects?: SkillEffectSpec[];
   is_alive: boolean;
 };
 
@@ -123,6 +126,7 @@ export type SummonState = {
   attack_timer: number;
   duration_remaining: number;
   status_effects: SkillStatusEffectSpec[];
+  effects?: SkillEffectSpec[];
   is_alive: boolean;
 };
 

@@ -2,7 +2,11 @@ import copy
 import json
 
 from app.schemas.playable_schema import HeroPlayableSpec
-from app.services.playable_spec_service import PlayableSpecService, validate_playable_spec
+from app.services.playable_spec_service import (
+    PlayableSpecService,
+    build_safe_default_spec,
+    validate_playable_spec,
+)
 
 
 class ValidPlayableLLMClient:
@@ -246,6 +250,28 @@ def test_generate_maps_control_design_to_slow_mark_and_stun_status_effects():
         for effect in skill.status_effects
     }
     assert {"slow", "mark", "stun"}.issubset(status_types)
+
+
+def test_directional_flame_wave_is_not_mapped_to_self_dash():
+    raw_spec = build_safe_default_spec(
+        {
+            "name": "炎阳君",
+            "skills": [
+                {
+                    "slot": "E",
+                    "name": "烈焰奔流",
+                    "description": "释放一道向前推进的火焰波浪，对路径敌人造成伤害并显著减速，燃烧路径地面形成熔岩领域。",
+                }
+            ],
+        }
+    )
+    skill = next(item for item in raw_spec["skills"] if item["slot"] == "E")
+
+    assert skill["type"] != "dash"
+    assert skill["type"] == "projectile"
+    assert any(effect["action"] == "spawn_zone" for effect in skill["effects"])
+    assert "distance" not in skill
+    HeroPlayableSpec.model_validate(raw_spec)
 
 
 def test_llm_error_falls_back_to_safe_spec_from_json_string():
