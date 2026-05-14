@@ -6,18 +6,25 @@ from pathlib import Path
 import pytest
 
 from app.schemas.project_schema import ProjectSaveRequest
+from app.services import project_import_service
 from app.services.project_import_service import ProjectImportService
 from app.storage.project_repository import ProjectRepository
-from project_test_helpers import make_project_save_request
+from project_test_helpers import make_project_save_request, make_runtime_vfx_asset_spec
 
 
-def make_archive(project_data: dict | None = None, file_name: str = "project.json") -> bytes:
+def make_archive(
+    project_data: dict | None = None,
+    file_name: str = "project.json",
+    extra_files: dict[str, bytes] | None = None,
+) -> bytes:
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(
             file_name,
             json.dumps(project_data or make_project_save_request(), ensure_ascii=False),
         )
+        for name, content in (extra_files or {}).items():
+            archive.writestr(name, content)
     return buffer.getvalue()
 
 
@@ -46,6 +53,52 @@ def test_import_project_archive_overwrites_existing_project(tmp_path):
 
     assert result.project.hero_design.hero_name == "Imported Hero"
     assert repository.get_project("project_demo").hero_design.hero_name == "Imported Hero"
+
+
+def test_import_project_archive_restores_runtime_vfx_textures(tmp_path, monkeypatch):
+    service = make_service(tmp_path)
+    runtime_vfx_spec = make_runtime_vfx_asset_spec()
+    project_data = make_project_save_request(runtime_vfx_asset_spec=runtime_vfx_spec)
+    texture_bytes = b"fake-png-data"
+    runtime_root = tmp_path / "runtime_vfx"
+
+    def fake_resolve_runtime_vfx_file(path: str) -> Path:
+        normalized = path.replace("\\", "/").removeprefix("runtime_vfx/")
+        return runtime_root / normalized
+
+    monkeypatch.setattr(
+        project_import_service,
+        "resolve_runtime_vfx_file",
+        fake_resolve_runtime_vfx_file,
+    )
+
+    result = service.import_project_archive(
+        make_archive(
+            project_data,
+            extra_files={
+                "playable/runtime_vfx/textures/Q_projectile.png": texture_bytes,
+            },
+        )
+    )
+
+    asset_path = (
+        result.project.runtime_vfx_asset_spec.skills["Q"].assets["projectile"].path
+    )
+    restored_path = fake_resolve_runtime_vfx_file(asset_path)
+    assert restored_path.exists()
+    assert restored_path.read_bytes() == texture_bytes
+
+
+def test_import_project_archive_without_runtime_vfx_textures_still_saves_project(tmp_path):
+    service = make_service(tmp_path)
+    project_data = make_project_save_request(
+        runtime_vfx_asset_spec=make_runtime_vfx_asset_spec()
+    )
+
+    result = service.import_project_archive(make_archive(project_data))
+
+    assert result.imported is True
+    assert result.project.runtime_vfx_asset_spec is not None
 
 
 def test_import_project_archive_requires_project_json(tmp_path):

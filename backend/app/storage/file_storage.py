@@ -1,4 +1,5 @@
 import re
+import shutil
 from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -158,3 +159,29 @@ def resolve_runtime_vfx_file(file_path: str) -> Path:
         raise PermissionError("Runtime VFX files must stay under outputs/runtime_vfx")
 
     return requested_path
+
+
+def get_project_asset_dirs(project_id: str) -> list[Path]:
+    ensure_output_dirs()
+    safe_project_id = sanitize_project_id(project_id)
+    asset_roots = [
+        IMAGE_OUTPUT_ROOT,
+        BOARD_OUTPUT_ROOT,
+        EXPORT_OUTPUT_ROOT,
+        RUNTIME_VFX_OUTPUT_ROOT,
+    ]
+
+    asset_dirs: list[Path] = []
+    for root in asset_roots:
+        target = (root / safe_project_id).resolve()
+        if not target.is_relative_to(root.resolve()):
+            raise ValueError("Project asset path cannot escape outputs")
+        asset_dirs.append(target)
+
+    return asset_dirs
+
+
+def delete_project_asset_dirs(project_id: str) -> None:
+    for asset_dir in get_project_asset_dirs(project_id):
+        if asset_dir.is_dir():
+            shutil.rmtree(asset_dir)

@@ -12,8 +12,8 @@ from project_test_helpers import (
 )
 
 
-def make_repo(tmp_path: Path) -> ProjectRepository:
-    return ProjectRepository(project_dir=tmp_path)
+def make_repo(tmp_path: Path, asset_roots: list[Path] | None = None) -> ProjectRepository:
+    return ProjectRepository(project_dir=tmp_path, asset_roots=asset_roots)
 
 
 def test_save_project_creates_json_file(tmp_path):
@@ -153,6 +153,40 @@ def test_delete_project_removes_json_file(tmp_path):
 
     assert deleted is True
     assert not (tmp_path / "project_demo.json").exists()
+
+
+def test_delete_project_removes_project_asset_directories(tmp_path):
+    asset_roots = [
+        tmp_path / "images",
+        tmp_path / "boards",
+        tmp_path / "exports",
+        tmp_path / "runtime_vfx",
+    ]
+    repo = make_repo(tmp_path / "projects", asset_roots=asset_roots)
+    repo.save_project(ProjectSaveRequest(**make_project_save_request()))
+    for root in asset_roots:
+        asset_dir = root / "project_demo"
+        asset_dir.mkdir(parents=True)
+        (asset_dir / "asset.txt").write_text("asset", encoding="utf-8")
+
+    deleted = repo.delete_project("project_demo")
+
+    assert deleted is True
+    for root in asset_roots:
+        assert not (root / "project_demo").exists()
+
+
+def test_delete_missing_project_does_not_remove_asset_directories(tmp_path):
+    asset_root = tmp_path / "images"
+    asset_dir = asset_root / "missing"
+    asset_dir.mkdir(parents=True)
+    (asset_dir / "asset.txt").write_text("asset", encoding="utf-8")
+    repo = make_repo(tmp_path / "projects", asset_roots=[asset_root])
+
+    deleted = repo.delete_project("missing")
+
+    assert deleted is False
+    assert asset_dir.exists()
 
 
 def test_get_missing_project_raises_file_not_found(tmp_path):

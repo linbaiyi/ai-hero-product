@@ -14,13 +14,14 @@ from project_test_helpers import (
 client = TestClient(app)
 
 
-def override_repo(tmp_path: Path):
+def override_repo(tmp_path: Path, asset_roots: list[Path] | None = None):
     app.dependency_overrides.clear()
 
     from app.api.project_routes import get_project_repository
 
     app.dependency_overrides[get_project_repository] = lambda: ProjectRepository(
-        project_dir=tmp_path
+        project_dir=tmp_path,
+        asset_roots=asset_roots,
     )
 
 
@@ -113,6 +114,28 @@ def test_delete_project_route_deletes_record(tmp_path):
     assert delete_response.status_code == 200
     assert delete_response.json()["deleted"] is True
     assert get_response.status_code == 404
+
+
+def test_delete_project_route_removes_asset_directories(tmp_path):
+    asset_roots = [
+        tmp_path / "images",
+        tmp_path / "boards",
+        tmp_path / "exports",
+        tmp_path / "runtime_vfx",
+    ]
+    override_repo(tmp_path / "projects", asset_roots=asset_roots)
+    client.post("/api/projects/save", json=make_project_save_request())
+    for root in asset_roots:
+        asset_dir = root / "project_demo"
+        asset_dir.mkdir(parents=True)
+        (asset_dir / "asset.txt").write_text("asset", encoding="utf-8")
+
+    response = client.delete("/api/projects/project_demo")
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] is True
+    for root in asset_roots:
+        assert not (root / "project_demo").exists()
 
 
 def test_get_missing_project_returns_404(tmp_path):

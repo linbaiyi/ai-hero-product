@@ -1,4 +1,5 @@
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -7,12 +8,18 @@ from app.schemas.project_schema import (
     ProjectSaveRequest,
     ProjectSummary,
 )
+from app.storage import file_storage
 from app.storage.file_storage import get_project_file_path, sanitize_project_id
 
 
 class ProjectRepository:
-    def __init__(self, project_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        project_dir: Path | None = None,
+        asset_roots: list[Path] | None = None,
+    ) -> None:
         self.project_dir = project_dir
+        self.asset_roots = asset_roots
         if self.project_dir is not None:
             self.project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -74,6 +81,7 @@ class ProjectRepository:
             return False
 
         file_path.unlink()
+        self._delete_project_asset_dirs(safe_project_id)
         return True
 
     def _project_dir(self) -> Path:
@@ -88,6 +96,20 @@ class ProjectRepository:
                 raise ValueError("项目路径不允许超出 outputs 目录")
             return file_path
         return get_project_file_path(project_id)
+
+    def _delete_project_asset_dirs(self, project_id: str) -> None:
+        if self.asset_roots is None:
+            file_storage.delete_project_asset_dirs(project_id)
+            return
+
+        safe_project_id = sanitize_project_id(project_id)
+        for root in self.asset_roots:
+            root.mkdir(parents=True, exist_ok=True)
+            target = (root / safe_project_id).resolve()
+            if not target.is_relative_to(root.resolve()):
+                raise ValueError("Project asset path cannot escape test asset root")
+            if target.is_dir():
+                shutil.rmtree(target)
 
 
 def _record_to_summary(record: ProjectRecord) -> ProjectSummary:
