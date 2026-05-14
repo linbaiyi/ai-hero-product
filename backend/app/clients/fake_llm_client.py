@@ -260,6 +260,22 @@ def _generate_project_playable_skill_edit(prompt: str) -> dict:
             "vfx": _fake_fire_vfx("circle_zone", "#ff8a2a"),
         }
     if slot == "E":
+        if True:
+            return {
+                "slot": "E",
+                "name": "Edited E Fire Spirit",
+                "type": "summon",
+                "cooldown": 8,
+                "resource_cost": 25,
+                "damage": 24,
+                "range": 8,
+                "radius": 3.5,
+                "duration": 8,
+                "tick_interval": 1,
+                "status_effects": status_effects,
+                "description": "Summon the fire spirit unchanged, and create a burning fire sea at its spawn point that damages enemies over time.",
+                "vfx": _fake_fire_vfx("circle_zone", "#ff5a1f"),
+            }
         if any(keyword in lower_prompt for keyword in ["fire sea", "burning ground", "火海"]):
             return {
                 "slot": "E",
@@ -323,7 +339,8 @@ def _generate_project_playable_skill_edit(prompt: str) -> dict:
 
 def _generate_project_runtime_vfx_edit_plan(prompt: str) -> dict:
     lower_prompt = prompt.lower()
-    if any(keyword in lower_prompt for keyword in ["fire sea", "burning ground", "鐏捣"]):
+    decision_text = lower_prompt.split("user edit instruction:", 1)[-1]
+    if any(keyword in decision_text for keyword in ["fire sea", "burning ground", "火海", "燃烧地面"]):
         return {
             "keep_usages": ["summon_body"],
             "regenerate_usages": ["aura", "impact"],
@@ -331,7 +348,10 @@ def _generate_project_runtime_vfx_edit_plan(prompt: str) -> dict:
             "remove_usages": [],
             "reason": "The summon body is preserved, but the new fire sea needs a ground decal and refreshed surrounding effects.",
         }
-    if any(keyword in lower_prompt for keyword in ["visual unchanged", "vfx unchanged", "texture unchanged", "瑙嗚鏁堟灉涓嶅彉"]):
+    if any(
+        keyword in decision_text
+        for keyword in ["visual unchanged", "vfx unchanged", "texture unchanged", "视觉不变", "贴图不变"]
+    ):
         return {
             "keep_usages": ["projectile"],
             "regenerate_usages": [],
@@ -339,15 +359,15 @@ def _generate_project_runtime_vfx_edit_plan(prompt: str) -> dict:
             "remove_usages": [],
             "reason": "The edit explicitly keeps visuals unchanged.",
         }
-    if any(keyword in lower_prompt for keyword in ["burn", "burning", "ignite", "鐏肩儳", "鐕冪儳"]):
+    if any(keyword in decision_text for keyword in ["burn", "burning", "ignite", "灼烧", "燃烧"]):
         return {
             "keep_usages": ["projectile"],
             "regenerate_usages": [],
-            "add_usages": ["trail", "impact"],
+            "add_usages": ["trail", "impact", "hit_flash", "burn_loop"],
             "remove_usages": [],
-            "reason": "The projectile remains, while burn feedback benefits from trail and impact textures.",
+            "reason": "The projectile remains, while burn feedback benefits from trail, impact, hit flash, and burn loop textures.",
         }
-    if "aoe" in lower_prompt or "ground explosion" in lower_prompt:
+    if "aoe" in decision_text or "ground explosion" in decision_text:
         return {
             "keep_usages": [],
             "regenerate_usages": [],

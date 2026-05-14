@@ -11,6 +11,7 @@ export type RuntimeVfxSkillType =
 export type RuntimeVfxUsage =
   | "projectile"
   | "impact"
+  | "hit_flash"
   | "ground_decal"
   | "aura"
   | "trail"

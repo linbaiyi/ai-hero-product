@@ -27,6 +27,7 @@ INFERRED_USAGE_BY_SKILL_TYPE: dict[str, list[RuntimeVfxUsagePlan]] = {
         RuntimeVfxUsagePlan("projectile", "sprite"),
         RuntimeVfxUsagePlan("trail", "sprite_trail"),
         RuntimeVfxUsagePlan("impact", "sprite"),
+        RuntimeVfxUsagePlan("hit_flash", "sprite"),
     ],
     "aoe": [
         RuntimeVfxUsagePlan("ground_decal", "ground_plane"),
@@ -130,6 +131,7 @@ def _usage_plans_from_skill_effects(skill: SkillSpec) -> list[RuntimeVfxUsagePla
             plans.append(RuntimeVfxUsagePlan("cast_flash", "sprite", trigger, action, index))
             if action in {"spawn_zone", "aoe_damage", "apply_status"}:
                 plans.append(RuntimeVfxUsagePlan("cast_circle", "ground_plane", trigger, action, index))
+                plans.append(RuntimeVfxUsagePlan("ground_decal", "ground_plane", trigger, action, index))
             if action == "spawn_projectile":
                 plans.append(RuntimeVfxUsagePlan("projectile", "sprite", trigger, action, index))
                 plans.append(RuntimeVfxUsagePlan("trail", "sprite_trail", trigger, action, index))
@@ -140,6 +142,9 @@ def _usage_plans_from_skill_effects(skill: SkillSpec) -> list[RuntimeVfxUsagePla
 
         if trigger == "on_projectile_hit":
             if action in {"damage", "aoe_damage", "apply_status", "spawn_zone"}:
+                plans.append(RuntimeVfxUsagePlan("impact", "sprite", trigger, action, index))
+            if action == "spawn_vfx_event":
+                plans.append(RuntimeVfxUsagePlan("hit_flash", "sprite", trigger, action, index))
                 plans.append(RuntimeVfxUsagePlan("impact", "sprite", trigger, action, index))
             if action == "spawn_zone":
                 plans.append(RuntimeVfxUsagePlan("ground_decal", "ground_plane", trigger, action, index))
@@ -152,9 +157,15 @@ def _usage_plans_from_skill_effects(skill: SkillSpec) -> list[RuntimeVfxUsagePla
             plans.append(RuntimeVfxUsagePlan("summon_expire", "sprite", trigger, action, index))
             if action in {"damage", "aoe_damage", "apply_status", "spawn_zone"}:
                 plans.append(RuntimeVfxUsagePlan("impact", "sprite", trigger, action, index))
+            if action == "spawn_vfx_event":
+                plans.append(RuntimeVfxUsagePlan("hit_flash", "sprite", trigger, action, index))
+                plans.append(RuntimeVfxUsagePlan("impact", "sprite", trigger, action, index))
             if action == "spawn_zone":
                 plans.append(RuntimeVfxUsagePlan("ground_decal", "ground_plane", trigger, action, index))
 
+        if action == "spawn_vfx_event" and trigger not in {"on_projectile_hit", "on_summon_expire", "on_summon_death"}:
+            plans.append(RuntimeVfxUsagePlan("hit_flash", "sprite", trigger, action, index))
+            plans.append(RuntimeVfxUsagePlan("impact", "sprite", trigger, action, index))
         if action == "spawn_zone":
             plans.append(RuntimeVfxUsagePlan("ground_decal", "ground_plane", trigger, action, index))
         if action == "apply_status" or effect.status_effects:

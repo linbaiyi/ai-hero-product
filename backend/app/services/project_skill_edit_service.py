@@ -21,6 +21,7 @@ from app.schemas.project_skill_edit_schema import (
 from app.schemas.runtime_vfx_prompt_schema import RuntimeVfxPromptItem
 from app.schemas.runtime_vfx_schema import RuntimeVfxAssetSpec
 from app.schemas.vfx_schema import VfxDesign
+from app.services.playable_spec_service import ensure_hit_feedback_vfx_events
 from app.services.runtime_vfx_generation_service import (
     DEFAULT_DURATION_BY_USAGE,
     DEFAULT_RENDER_MODE_BY_USAGE,
@@ -214,7 +215,12 @@ def _replace_playable_skill(
             continue
         if request.replacement_playable_skill_spec is not None:
             replacement = SkillSpec.model_validate(request.replacement_playable_skill_spec)
-            skills[index] = replacement.model_dump()
+            skills[index] = _finalize_edited_playable_skill(
+                data,
+                slot,
+                replacement.model_dump(),
+                request.edit_instruction,
+            )
         else:
             replacement = _generate_single_playable_skill(
                 llm_client,
@@ -223,8 +229,34 @@ def _replace_playable_skill(
                 slot,
                 request.edit_instruction,
             )
-            skills[index] = replacement
+            skills[index] = _finalize_edited_playable_skill(
+                data,
+                slot,
+                replacement,
+                request.edit_instruction,
+            )
         return
+
+
+def _finalize_edited_playable_skill(
+    data: dict[str, Any],
+    slot: str,
+    skill: dict[str, Any],
+    edit_instruction: str,
+) -> dict[str, Any]:
+    try:
+        target_hero_skill = _hero_skill_for_slot(data, slot)
+    except ValueError:
+        target_hero_skill = None
+    mapped = ensure_hit_feedback_vfx_events(
+        {"skills": [deepcopy(skill)]},
+        {
+            "hero_skill": target_hero_skill,
+            "target_slot": slot,
+            "edit_instruction": edit_instruction,
+        },
+    )
+    return SkillSpec.model_validate(mapped["skills"][0]).model_dump()
 
 
 def _replace_runtime_vfx_skill_assets(
@@ -262,6 +294,7 @@ def _replace_runtime_vfx_skill_assets(
     required_usages = {item.usage for item in slot_prompts}
     old_skill_spec = parsed_runtime.skills[slot]
     old_assets = old_skill_spec.assets
+    old_asset_keys = set(old_assets.keys())
     old_asset_by_usage = {asset.usage: (key, asset) for key, asset in old_assets.items()}
     edit_plan = _plan_runtime_vfx_asset_edits(
         llm_client=llm_client,
@@ -330,13 +363,12 @@ def _replace_runtime_vfx_skill_assets(
     missing_prompts = [
         item
         for item in slot_prompts
-        if item.usage in required_usages
+        if (asset_key := _runtime_asset_key_for_prompt_item(item))
+        and item.usage in required_usages
         and (
             item.usage in regenerate_usages
-        or (
-            item.usage not in old_asset_by_usage
+            or asset_key not in old_asset_keys
             and (visual_texture_change or item.usage in required_missing_usages)
-        )
         )
     ]
     if missing_prompts:
@@ -358,8 +390,9 @@ def _replace_runtime_vfx_skill_assets(
             ) from exc
 
         for item in missing_prompts:
-            file_name = f"{slot}_{sanitize_file_name(item.usage)}.png"
-            next_assets[item.usage] = {
+            asset_key = _runtime_asset_key_for_prompt_item(item)
+            file_name = f"{slot}_{sanitize_file_name(asset_key)}.png"
+            next_assets[asset_key] = {
                 "path": f"{asset_base_path}/{file_name}",
                 "usage": item.usage,
                 "blend_mode": "additive",
@@ -393,7 +426,7 @@ def _generate_runtime_vfx_edit_textures(
     if not prompts:
         return
 
-    selected = [SelectedPrompt(item, item.usage) for item in prompts]
+    selected = [SelectedPrompt(item, _runtime_asset_key_for_prompt_item(item)) for item in prompts]
     grid = _atlas_grid(len(selected))
     atlas_path = output_dir / f"_{slot}_runtime_vfx_edit_atlas.png"
     client.generate_image(
@@ -441,6 +474,17 @@ def _generate_single_playable_skill(
     updated["description"] = _fallback_rewrite_description(description, edit_instruction)
     _apply_status_effect_hint(updated, edit_instruction)
     return SkillSpec.model_validate(updated).model_dump()
+
+
+def _runtime_asset_key_for_prompt_item(item: RuntimeVfxPromptItem) -> str:
+    parts = [item.usage]
+    if item.trigger:
+        parts.append(item.trigger.removeprefix("on_"))
+    if item.action:
+        parts.append(item.action)
+    if item.effect_index is not None:
+        parts.append(str(item.effect_index))
+    return "_".join(parts)
 
 
 def _runtime_output_location_for_project(
@@ -534,7 +578,7 @@ def _build_runtime_vfx_asset_edit_plan_prompt(
         '"remove_usages":["..."],'
         '"reason":"short reason"'
         "}\n"
-        "Allowed usages: projectile, impact, ground_decal, aura, trail, summon_body.\n"
+        f"Allowed usages: {', '.join(sorted(DEFAULT_RENDER_MODE_BY_USAGE.keys()))}.\n"
         "Rules:\n"
         "- keep_usages: existing textures that still match and must not be regenerated.\n"
         "- regenerate_usages: existing textures whose visual meaning changed.\n"
@@ -543,6 +587,8 @@ def _build_runtime_vfx_asset_edit_plan_prompt(
         "- Do not put the same usage in more than one action list.\n"
         "- If the edit says summon body/creature is unchanged, keep summon_body.\n"
         "- If the edit adds fire sea/burning ground/fire field, add or regenerate ground_decal.\n"
+        "- If the edit adds hit feedback, impact, explosion, burn-on-hit, or contact burst, add or regenerate hit_flash and impact.\n"
+        "- If the edited playable skill applies burn/poison/mark/stun/slow status, add or regenerate the matching status usage such as burn_loop, poison_cloud, mark_sigil, stun_stars, or status_loop.\n"
         "- Never remove the minimum required usage for the new skill type.\n"
         f"Original runtime VFX skill spec: {old_skill_spec}\n"
         f"Existing usages: {old_usages}\n"
@@ -698,6 +744,11 @@ def _instruction_requests_fire_sea(edit_instruction: str) -> bool:
         "地面火",
         "火焰区域",
         "燃烧区域",
+        "火海",
+        "燃烧地面",
+        "地面火",
+        "火焰区域",
+        "燃烧区域",
     ]
     return any(keyword in text for keyword in keywords)
 
@@ -709,6 +760,9 @@ def _instruction_requests_burn(edit_instruction: str) -> bool:
         "burning",
         "ignite",
         "scorch",
+        "灼烧",
+        "燃烧",
+        "点燃",
         "灼烧",
         "燃烧",
         "点燃",
@@ -784,7 +838,23 @@ def _should_regenerate_runtime_texture(
         return False
     if usage == "summon_body" and _instruction_preserves_summon_body(edit_instruction):
         return False
-    return usage in {"projectile", "impact", "ground_decal", "aura", "trail", "summon_body"}
+    return usage in {
+        "projectile",
+        "impact",
+        "hit_flash",
+        "ground_decal",
+        "aura",
+        "trail",
+        "summon_body",
+        "summon_spawn",
+        "summon_expire",
+        "status_loop",
+        "burn_loop",
+        "poison_cloud",
+        "mark_sigil",
+        "mark_sigial",
+        "stun_stars",
+    }
 
 
 def _missing_required_runtime_usages(
@@ -828,6 +898,12 @@ def _instruction_changes_visuals(edit_instruction: str) -> bool:
         "burn",
         "burning ground",
         "ground fire",
+        "火海",
+        "灼烧",
+        "燃烧",
+        "地面",
+        "召唤物生成",
+        "范围",
         "aura",
         "impact",
         "trail",
@@ -856,6 +932,10 @@ def _instruction_preserves_summon_body(edit_instruction: str) -> bool:
         "keep summon",
         "summon unchanged",
         "do not change summon",
+        "保持召唤物",
+        "召唤物不变",
+        "不改变召唤物",
+        "不改召唤物",
         "召唤物不变",
         "保持召唤物",
         "不要改变召唤物",

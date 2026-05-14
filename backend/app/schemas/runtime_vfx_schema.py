@@ -9,6 +9,7 @@ SkillType = Literal["projectile", "aoe", "aoe_dot", "dash", "buff", "summon"]
 AssetUsage = Literal[
     "projectile",
     "impact",
+    "hit_flash",
     "ground_decal",
     "aura",
     "trail",
@@ -119,6 +120,7 @@ class RuntimeVfxAssetEntry(BaseModel):
         allowed_render_modes = {
             "projectile": {"sprite", "billboard_plane"},
             "impact": {"sprite", "billboard_plane"},
+            "hit_flash": {"sprite", "billboard_plane"},
             "ground_decal": {"ground_plane"},
             "aura": {"aura_ring", "ground_plane"},
             "trail": {"sprite_trail", "sprite"},

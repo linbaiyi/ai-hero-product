@@ -75,6 +75,22 @@ def test_invalid_usage_fails():
         validate(data)
 
 
+def test_hit_flash_usage_passes_with_sprite_render_mode():
+    data = load_example()
+    data["skills"]["Q"]["assets"]["hit_flash"] = {
+        "path": "runtime_textures/Q_hit_flash.png",
+        "usage": "hit_flash",
+        "blend_mode": "additive",
+        "render_mode": "sprite",
+        "scale": 1.2,
+        "duration": 0.25,
+        "loop": False,
+        "color_tint": "#ff8a2a",
+    }
+
+    assert validate(data).skills["Q"].assets["hit_flash"].usage == "hit_flash"
+
+
 def test_invalid_render_mode_fails():
     data = load_example()
     first_asset(data)["render_mode"] = "mesh"

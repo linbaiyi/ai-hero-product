@@ -198,6 +198,24 @@ def test_generated_spec_passes_schema_validation():
     assert HeroPlayableSpec.model_validate(spec.model_dump()).hero.name == "Solar Warden"
 
 
+def test_generate_adds_hit_feedback_vfx_event_without_removing_projectile_logic():
+    service = PlayableSpecService(llm_client=ValidPlayableLLMClient())
+
+    spec = service.generate(hero_design())
+    q_skill = next(skill for skill in spec.skills if skill.slot == "Q")
+
+    assert any(
+        effect.trigger == "on_cast" and effect.action == "spawn_projectile"
+        for effect in q_skill.effects
+    )
+    assert any(
+        effect.trigger == "on_projectile_hit"
+        and effect.action == "spawn_vfx_event"
+        and effect.target == "projectile_position"
+        for effect in q_skill.effects
+    )
+
+
 def test_invalid_llm_json_falls_back_to_safe_spec():
     service = PlayableSpecService(llm_client=InvalidPlayableLLMClient())
 

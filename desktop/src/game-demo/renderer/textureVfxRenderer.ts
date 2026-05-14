@@ -689,6 +689,21 @@ function updateImpactComposition(
           continue;
         }
       }
+    } else if (event.type === "vfx_event") {
+      const handled = spawnImpact(
+        sceneHandles,
+        textureCache,
+        handles,
+        spec,
+        event.skill_slot,
+        { x: event.position.x, y: 0.65, z: event.position.z },
+        event.radius,
+        eventKey,
+        usagePreferencesForVfxEvent(event.usage),
+      );
+      if (!handled) {
+        continue;
+      }
     }
 
     handles.processed_events.add(eventKey);
@@ -765,8 +780,9 @@ function spawnImpact(
   position: { x: number; y: number; z: number },
   radius: number | undefined,
   eventKey: string,
+  preferredUsages: RuntimeVfxUsage[] = ["hit_flash", "impact"],
 ): boolean {
-  const asset = findAssetForSkillUsage(spec, slot, "impact");
+  const asset = findFirstAssetForUsages(spec, slot, preferredUsages);
   if (!asset) {
     return true;
   }
@@ -782,7 +798,7 @@ function spawnImpact(
   const instance = createRuntimeVfxInstance({
     id,
     slot,
-    usage: "impact",
+    usage: asset.usage,
     kind: "impact",
     asset,
     texture,
@@ -800,6 +816,33 @@ function spawnImpact(
     eventKey,
   );
   return true;
+}
+
+function findFirstAssetForUsages(
+  spec: RuntimeVfxAssetSpec,
+  slot: RuntimeVfxSlot,
+  usages: RuntimeVfxUsage[],
+): RuntimeVfxAssetEntry | undefined {
+  for (const usage of usages) {
+    const asset = findAssetForSkillUsage(spec, slot, usage);
+    if (asset) {
+      return asset;
+    }
+  }
+  return undefined;
+}
+
+function usagePreferencesForVfxEvent(usage: string): RuntimeVfxUsage[] {
+  if (usage === "hit_flash") {
+    return ["hit_flash", "impact"];
+  }
+  if (usage === "status_loop") {
+    return ["status_loop", "burn_loop", "poison_cloud", "hit_flash", "impact"];
+  }
+  if (usage === "impact") {
+    return ["impact", "hit_flash"];
+  }
+  return ["hit_flash", "impact"];
 }
 
 function spawnTransientGroundDecal(
@@ -1351,6 +1394,9 @@ function createEventKey(event: GameEvent, index: number): string | null {
   }
   if (event.type === "summon_spawned") {
     return `summon_spawned:${event.summon_id}:${index}`;
+  }
+  if (event.type === "vfx_event") {
+    return `vfx_event:${event.skill_slot}:${event.usage}:${event.position.x}:${event.position.z}:${index}`;
   }
   return null;
 }

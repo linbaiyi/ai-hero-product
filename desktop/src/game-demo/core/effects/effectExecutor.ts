@@ -63,7 +63,7 @@ export function executeSkillEffect(
     case "spawn_projectile":
       return executeSpawnProjectile(state, skill, effect, context);
     case "spawn_vfx_event":
-      return [];
+      return executeSpawnVfxEvent(state, skill, effect, context);
   }
 }
 
@@ -231,6 +231,38 @@ function executeSpawnProjectile(
       skill_slot: skill.slot,
     },
   ];
+}
+
+function executeSpawnVfxEvent(
+  state: GameState,
+  skill: SkillSpec,
+  effect: SkillEffectSpec,
+  context: SkillEffectContext,
+): GameEvent[] {
+  const position = resolvePositionTarget(state, effect, context);
+  if (!position) {
+    return [];
+  }
+  return [
+    {
+      type: "vfx_event",
+      skill_slot: skill.slot,
+      usage: inferVfxEventUsage(effect),
+      position: { ...position },
+      radius: effect.radius ?? skill.radius,
+      source_trigger: effect.trigger,
+    },
+  ];
+}
+
+function inferVfxEventUsage(effect: SkillEffectSpec): string {
+  if (effect.status_effects && effect.status_effects.length > 0) {
+    return "status_loop";
+  }
+  if (effect.trigger === "on_projectile_hit" || effect.target === "target_enemy") {
+    return "hit_flash";
+  }
+  return "impact";
 }
 
 function resolveEnemyTarget(

@@ -28,6 +28,7 @@ const RUNTIME_VFX_SKILL_TYPES = [
 const RUNTIME_VFX_USAGES = [
   "projectile",
   "impact",
+  "hit_flash",
   "ground_decal",
   "aura",
   "trail",
@@ -365,6 +366,7 @@ function validateUsageRenderMode(
   const allowedByUsage: Record<RuntimeVfxUsage, RuntimeVfxRenderMode[]> = {
     projectile: ["sprite", "billboard_plane"],
     impact: ["sprite", "billboard_plane"],
+    hit_flash: ["sprite", "billboard_plane"],
     ground_decal: ["ground_plane"],
     aura: ["aura_ring", "ground_plane"],
     trail: ["sprite_trail", "sprite"],

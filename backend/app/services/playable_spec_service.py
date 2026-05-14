@@ -169,7 +169,8 @@ def apply_design_mechanic_mapping(
 ) -> dict[str, Any]:
     spec = normalize_directional_area_skills(spec, hero_design)
     spec = prefer_summon_skill_when_requested(spec, hero_design)
-    return add_status_effects_when_requested(spec, hero_design)
+    spec = add_status_effects_when_requested(spec, hero_design)
+    return ensure_hit_feedback_vfx_events(spec, hero_design)
 
 
 def normalize_directional_area_skills(
@@ -342,6 +343,157 @@ def add_status_effects_when_requested(
                 continue
             effects.append(_status_effect_for_skill(skill, status_type))
     return spec
+
+
+def ensure_hit_feedback_vfx_events(
+    spec: dict[str, Any],
+    hero_design: Any | None,
+) -> dict[str, Any]:
+    skills = spec.get("skills")
+    if not isinstance(skills, list):
+        return spec
+
+    design_text = _to_searchable_value_text(hero_design)
+    for skill in skills:
+        if not isinstance(skill, dict):
+            continue
+        if not _skill_needs_hit_feedback_vfx(skill, design_text):
+            continue
+        effects = skill.setdefault("effects", [])
+        if not isinstance(effects, list):
+            skill["effects"] = effects = []
+        if not effects:
+            effects.extend(_legacy_effects_for_skill(skill))
+        trigger, target = _hit_feedback_trigger_and_target(skill)
+        if any(
+            isinstance(effect, dict)
+            and effect.get("action") == "spawn_vfx_event"
+            and effect.get("trigger") == trigger
+            and effect.get("target") == target
+            for effect in effects
+        ):
+            continue
+        effects.append(
+            {
+                "trigger": trigger,
+                "action": "spawn_vfx_event",
+                "target": target,
+                "radius": _number_or_default(skill.get("radius"), 1.0),
+            }
+        )
+    return spec
+
+
+def _legacy_effects_for_skill(skill: dict[str, Any]) -> list[dict[str, Any]]:
+    skill_type = skill.get("type")
+    if skill_type == "projectile":
+        effects: list[dict[str, Any]] = [
+            {
+                "trigger": "on_cast",
+                "action": "spawn_projectile",
+                "target": "target_position",
+            },
+            {
+                "trigger": "on_projectile_hit",
+                "action": "damage",
+                "target": "target_enemy",
+                "damage": _number_or_default(skill.get("damage"), 0),
+            },
+        ]
+        status_effects = skill.get("status_effects")
+        if isinstance(status_effects, list) and status_effects:
+            effects.append(
+                {
+                    "trigger": "on_projectile_hit",
+                    "action": "apply_status",
+                    "target": "target_enemy",
+                    "radius": _number_or_default(skill.get("radius"), 1),
+                    "status_effects": status_effects,
+                }
+            )
+        return effects
+    if skill_type == "aoe":
+        return [
+            {
+                "trigger": "on_cast",
+                "action": "aoe_damage",
+                "target": "enemies_in_radius",
+                "radius": _number_or_default(skill.get("radius"), 0),
+                "damage": _number_or_default(skill.get("damage"), 0),
+            }
+        ]
+    if skill_type == "aoe_dot":
+        return [
+            {
+                "trigger": "on_cast",
+                "action": "spawn_zone",
+                "target": "target_position",
+                "radius": _number_or_default(skill.get("radius"), 0),
+                "damage": _number_or_default(skill.get("damage"), 0),
+                "duration": _number_or_default(skill.get("duration"), 1),
+                "tick_interval": _number_or_default(skill.get("tick_interval"), 1),
+                "status_effects": skill.get("status_effects") if isinstance(skill.get("status_effects"), list) else [],
+            }
+        ]
+    if skill_type == "summon":
+        return [
+            {
+                "trigger": "on_cast",
+                "action": "summon",
+                "target": "target_position",
+                "duration": _number_or_default(skill.get("duration"), 8),
+            }
+        ]
+    return []
+
+
+def _skill_needs_hit_feedback_vfx(skill: dict[str, Any], design_text: str) -> bool:
+    skill_text = _to_searchable_value_text(
+        {
+            "name": skill.get("name"),
+            "description": skill.get("description"),
+            "vfx": skill.get("vfx"),
+            "effects": skill.get("effects"),
+        }
+    )
+    combined = f"{skill_text} {design_text}"
+    hit_feedback_terms = [
+        "hit",
+        "impact",
+        "explosion",
+        "explode",
+        "burst",
+        "shockwave",
+        "burning hit",
+        "ignite",
+        "scorch",
+        "命中",
+        "爆炸",
+        "冲击",
+        "燃烧",
+        "击中反馈",
+        "受击",
+    ]
+    return any(term in combined for term in hit_feedback_terms)
+
+
+def _to_searchable_value_text(source: Any) -> str:
+    if isinstance(source, dict):
+        return " ".join(_to_searchable_value_text(value) for value in source.values())
+    if isinstance(source, list):
+        return " ".join(_to_searchable_value_text(value) for value in source)
+    if source is None:
+        return ""
+    return str(source).lower()
+
+
+def _hit_feedback_trigger_and_target(skill: dict[str, Any]) -> tuple[str, str]:
+    skill_type = skill.get("type")
+    if skill_type == "projectile":
+        return "on_projectile_hit", "projectile_position"
+    if skill_type == "summon":
+        return "on_summon_attack", "target_enemy"
+    return "on_cast", "target_position"
 
 
 def _extract_text(source: Any, keys: list[str], fallback: str) -> str:

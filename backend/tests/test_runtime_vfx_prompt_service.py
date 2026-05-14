@@ -154,7 +154,7 @@ def test_generate_prompts_from_playable_spec_without_runtime_vfx_asset_spec():
 def test_projectile_skill_creates_projectile_trail_impact_prompts():
     response = generate()
 
-    assert usages_for_slot(response, "Q") == {"projectile", "trail", "impact"}
+    assert usages_for_slot(response, "Q") == {"projectile", "trail", "impact", "hit_flash"}
 
 
 def test_aoe_dot_skill_creates_ground_decal_prompt():
@@ -256,6 +256,29 @@ def test_skill_effects_create_stage_aware_runtime_vfx_prompts():
     )
 
 
+def test_spawn_vfx_event_creates_hit_flash_and_impact_prompts():
+    spec = playable_spec()
+    spec["skills"][0]["effects"] = [
+        {
+            "trigger": "on_cast",
+            "action": "spawn_projectile",
+            "target": "target_position",
+        },
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_vfx_event",
+            "target": "projectile_position",
+            "radius": 1,
+        },
+    ]
+
+    response = generate(request_payload(spec=spec))
+    q_items = [item for item in response.prompts if item.slot == "Q"]
+
+    assert any(item.usage == "hit_flash" and item.action == "spawn_vfx_event" for item in q_items)
+    assert any(item.usage == "impact" and item.action == "spawn_vfx_event" for item in q_items)
+
+
 def test_summon_expire_effect_creates_expiration_impact_prompt():
     spec = playable_spec()
     spec["skills"][0].update(
@@ -305,6 +328,7 @@ def test_runtime_prompts_use_resource_specific_texture_templates():
     assert "isolated projectile sprite" in prompts_by_usage["projectile"]
     assert "elongated energy trail texture" in prompts_by_usage["trail"]
     assert "isolated impact explosion sprite" in prompts_by_usage["impact"]
+    assert "isolated hit feedback flash sprite" in prompts_by_usage["hit_flash"]
     assert "top-down circular ground decal" in prompts_by_usage["ground_decal"]
     assert "top-down aura ring" in prompts_by_usage["aura"]
 

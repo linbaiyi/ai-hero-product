@@ -218,10 +218,21 @@ def test_edit_skill_can_use_llm_to_rewrite_only_selected_skill(tmp_path):
     assert response.project.playable_spec is not None
     assert response.project.playable_spec.skills[0].name == "Edited Q Projectile"
     assert response.project.playable_spec.skills[0].status_effects[0].type == "burn"
+    assert any(
+        effect.action == "spawn_vfx_event"
+        and effect.trigger == "on_projectile_hit"
+        for effect in response.project.playable_spec.skills[0].effects
+    )
     assert response.project.playable_spec.skills[1].name == "Test Field"
     assert response.project.runtime_vfx_asset_spec is not None
     q_assets = response.project.runtime_vfx_asset_spec.skills["Q"].assets
-    assert {"projectile", "trail", "impact"} <= set(q_assets.keys())
+    assert {
+        "projectile",
+        "trail_cast_spawn_projectile_0",
+        "impact_projectile_hit_damage_1",
+        "hit_flash_projectile_hit_spawn_vfx_event_3",
+        "burn_loop_projectile_hit_apply_status_2",
+    } <= set(q_assets.keys())
     assert response.project.skill_artifacts["Q"].runtime_vfx_skill_spec["skill_name"] == "Edited Q Projectile"
     assert response.project.playable_spec.skills[2].name == "Test Dash"
     assert response.project.playable_spec.skills[3].name == "Test Meteor"
@@ -287,8 +298,13 @@ def test_edit_skill_removes_obsolete_runtime_vfx_texture_when_usage_changes(tmp_
     assert not old_file.exists()
     q_assets = response.project.runtime_vfx_asset_spec.skills["Q"].assets
     assert "projectile" not in q_assets
-    assert {"ground_decal", "impact"} <= set(q_assets.keys())
-    assert q_assets["ground_decal"].path.endswith("/Q_ground_decal.png")
+    assert {
+        "ground_decal_cast_aoe_damage_0",
+        "impact_cast_spawn_vfx_event_1",
+    } <= set(q_assets.keys())
+    assert q_assets["ground_decal_cast_aoe_damage_0"].path.endswith(
+        "/Q_ground_decal_cast_aoe_damage_0.png"
+    )
 
 
 def test_visual_edit_regenerates_effect_textures_but_keeps_unchanged_summon_body(tmp_path):
@@ -352,14 +368,14 @@ def test_visual_edit_regenerates_effect_textures_but_keeps_unchanged_summon_body
         "skill_edit_demo",
         "E",
         ProjectSkillEditRequest(
-            edit_instruction="E技能保持召唤物不变，在召唤物生成地点产生一片火海，持续伤害并灼烧。",
+                edit_instruction="Keep summon body unchanged and add a burning fire sea at the summon spawn point, dealing damage over time and applying burn.",
         ),
     )
 
     e_assets = response.project.runtime_vfx_asset_spec.skills["E"].assets
     assert e_assets["summon_body"].path == old_summon_body
     assert resolve_runtime_vfx_file(e_assets["aura"].path).exists()
-    assert resolve_runtime_vfx_file(e_assets["impact"].path).exists()
+    assert resolve_runtime_vfx_file(e_assets["impact_summon_attack_spawn_vfx_event_1"].path).exists()
     assert resolve_runtime_vfx_file(e_assets["ground_decal"].path).exists()
     assert image_client.generated_sizes == [(1024, 1024)]
     assert "Create one 1024x1024 game VFX texture atlas" in image_client.generated_prompts[0]
@@ -433,7 +449,7 @@ def test_runtime_vfx_edit_plan_retries_until_actions_are_valid(tmp_path):
         "skill_edit_demo",
         "E",
         ProjectSkillEditRequest(
-            edit_instruction="E技能保持召唤物不变，在召唤物生成地点产生一片火海，持续伤害并灼烧。",
+                edit_instruction="Keep summon body unchanged and add a burning fire sea at the summon spawn point, dealing damage over time and applying burn.",
         ),
     )
 
@@ -505,7 +521,7 @@ def test_skill_edit_fails_transaction_when_runtime_texture_regeneration_fails(tm
             "skill_edit_demo",
             "E",
             ProjectSkillEditRequest(
-                edit_instruction="E技能保持召唤物不变，在召唤物生成地点产生一片火海，持续伤害并灼烧。",
+                edit_instruction="Keep summon body unchanged and add a burning fire sea at the summon spawn point, dealing damage over time and applying burn.",
             ),
         )
 
@@ -534,9 +550,16 @@ def test_invalid_runtime_vfx_edit_plan_falls_back_to_safe_local_rules(tmp_path):
     )
 
     q_assets = response.project.runtime_vfx_asset_spec.skills["Q"].assets
-    assert {"projectile", "trail", "impact"} <= set(q_assets.keys())
-    assert resolve_runtime_vfx_file(q_assets["trail"].path).exists()
-    assert resolve_runtime_vfx_file(q_assets["impact"].path).exists()
+    assert {
+        "projectile_cast_spawn_projectile_0",
+        "trail_cast_spawn_projectile_0",
+        "impact_projectile_hit_damage_1",
+        "hit_flash_projectile_hit_spawn_vfx_event_3",
+        "burn_loop_projectile_hit_apply_status_2",
+    } <= set(q_assets.keys())
+    assert resolve_runtime_vfx_file(q_assets["trail_cast_spawn_projectile_0"].path).exists()
+    assert resolve_runtime_vfx_file(q_assets["impact_projectile_hit_damage_1"].path).exists()
+    assert resolve_runtime_vfx_file(q_assets["hit_flash_projectile_hit_spawn_vfx_event_3"].path).exists()
     assert image_client.generated_sizes == [(1024, 1024)]
 
 

@@ -408,6 +408,26 @@ def test_effect_chain_generates_stage_aware_assets_without_overwriting_usage():
     assert len({asset.path for asset in response.generated_assets}) == len(response.generated_assets)
 
 
+def test_spawn_vfx_event_generates_hit_flash_asset():
+    payload = effect_chain_request_payload(project_id="runtime_vfx_service_hit_flash")
+    payload["playable_spec"]["skills"][0]["effects"].append(
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_vfx_event",
+            "target": "projectile_position",
+            "radius": 1,
+        }
+    )
+    service = RuntimeVfxGenerationService(image_client=FakeImageClient())
+
+    response = service.generate(RuntimeVfxGenerationRequest.model_validate(payload))
+    q_assets = response.runtime_vfx_asset_spec.skills["Q"].assets
+
+    assert "hit_flash_projectile_hit_spawn_vfx_event_2" in q_assets
+    assert q_assets["hit_flash_projectile_hit_spawn_vfx_event_2"].usage == "hit_flash"
+    assert output_file_for_asset_path(q_assets["hit_flash_projectile_hit_spawn_vfx_event_2"].path).exists()
+
+
 def test_invalid_playable_spec_fails():
     invalid = copy.deepcopy(request_payload())
     invalid["playable_spec"]["version"] = "2.0"

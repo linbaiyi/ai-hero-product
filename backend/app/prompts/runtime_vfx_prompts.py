@@ -5,6 +5,7 @@ from app.schemas.playable_schema import SkillSpec
 USAGE_DETAILS = {
     "projectile": "single projectile core, compact energy ball, arrow, bolt, or magic missile",
     "impact": "radial burst, explosion, shockwave, concentrated hit flash",
+    "hit_flash": "compact enemy-hit feedback flash, contact spark, short radial burst at damage point",
     "ground_decal": (
         "strict top-down view, flat circular ground decal, flat magic circle texture, "
         "painted-on-ground area marker, no dome, no sphere, no shield, no vertical wall, "

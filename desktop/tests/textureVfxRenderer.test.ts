@@ -681,6 +681,43 @@ describe("runtime texture loader and VFX renderer", () => {
     expect(proceduralKinds).toContain("particle_burst");
   });
 
+  it("vfx_event uses hit_flash asset before generic impact", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.events.push({
+      type: "vfx_event",
+      skill_slot: "Q",
+      usage: "hit_flash",
+      position: { x: 3, z: 2 },
+      radius: 0.8,
+      source_trigger: "on_projectile_hit",
+    });
+    const spec = createProjectileRuntimeVfxSpecForSlot("Q");
+    spec.skills.Q.assets.hit_flash = {
+      path: "runtime_vfx/generated/hero/Q_hit_flash.png",
+      usage: "hit_flash",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1.4,
+      duration: 0.22,
+      loop: false,
+      color_tint: "#ffb15a",
+      trigger: "on_projectile_hit",
+      action: "spawn_vfx_event",
+      effect_index: 2,
+    };
+
+    renderGameState(handles, state);
+    updateTextureVfx(handles, state, spec, createFakeTextureCache());
+
+    const impactObject = [...(handles.handles.texture_vfx?.impacts.values() ?? [])][0];
+    expect(impactObject).toBeInstanceOf(THREE.Sprite);
+    const instance = [...(handles.handles.texture_vfx?.instances.values() ?? [])].find(
+      (item) => item.id.startsWith("impact:vfx_event"),
+    );
+    expect(instance?.usage).toBe("hit_flash");
+  });
+
   it("R cast transient texture uses the skill cast target", () => {
     const handles = createBaseScene();
     const state = createState();

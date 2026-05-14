@@ -153,6 +153,14 @@ export type GameEvent =
   | { type: "damage"; enemy_id: string; amount: number; remaining_hp: number }
   | { type: "projectile_spawned"; projectile_id: string; skill_slot: SkillSlot }
   | { type: "projectile_hit"; projectile_id: string; enemy_id: string }
+  | {
+      type: "vfx_event";
+      skill_slot: SkillSlot;
+      usage: string;
+      position: Vec2;
+      radius?: number;
+      source_trigger?: string;
+    }
   | { type: "zone_spawned"; zone_id: string; skill_slot: SkillSlot }
   | { type: "zone_tick"; zone_id: string; hit_enemy_ids: string[] }
   | { type: "dash"; skill_slot: SkillSlot; from: Vec2; to: Vec2 }

@@ -52,9 +52,13 @@ def test_edit_skill_route_returns_updated_project(tmp_path):
     assert body["project"]["playable_spec"]["skills"][0]["status_effects"][0]["type"] == "burn"
     assert body["project"]["playable_spec"]["skills"][1]["name"] == "Test Field"
     assert sorted(body["project"]["runtime_vfx_asset_spec"]["skills"]["Q"]["assets"].keys()) == [
-        "impact",
+        "burn_loop_projectile_hit_apply_status_2",
+        "hit_flash_projectile_hit_spawn_vfx_event_3",
+        "impact_projectile_hit_apply_status_2",
+        "impact_projectile_hit_damage_1",
+        "impact_projectile_hit_spawn_vfx_event_3",
         "projectile",
-        "trail",
+        "trail_cast_spawn_projectile_0",
     ]
 
 

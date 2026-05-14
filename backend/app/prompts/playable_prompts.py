@@ -65,6 +65,12 @@ Semantic mapping rules:
     on_summon_expire + aoe_damage effect targeting summon_position.
   - Example: "projectile leaves a burning field on hit" should become an
     on_projectile_hit + spawn_zone effect targeting projectile_position.
+  - If the original skill description or vfx.impact mentions hit feedback,
+    explosion, burst, impact, shockwave, burning hit, 命中, 爆炸, 冲击,
+    燃烧, 击中反馈, then also add an on_projectile_hit + spawn_vfx_event
+    effect targeting projectile_position for projectile skills, or an
+    equivalent spawn_vfx_event at the damage point for area/summon effects.
+    This event is visual only and lets Runtime VFX generate hit_flash/impact/status_loop assets.
   - Example: "a flame wave surges forward and burns the path" should not be
     dash. Use projectile + on_projectile_hit spawn_zone/apply_status effects.
   - Use damage for burn/poison tick damage.

@@ -94,6 +94,17 @@ function makeProjectileCreatesBurningGroundSpec(): HeroPlayableSpec {
   return spec;
 }
 
+function makeProjectileHitVfxSpec(): HeroPlayableSpec {
+  const spec = makeProjectileCreatesBurningGroundSpec();
+  spec.skills[0].effects?.push({
+    trigger: "on_projectile_hit",
+    action: "spawn_vfx_event",
+    target: "projectile_position",
+    radius: 1,
+  });
+  return spec;
+}
+
 describe("event-driven skill effects", () => {
   it("summon can explode at its position when it expires", () => {
     const spec = makeExplodingSummonSpec();
@@ -138,5 +149,24 @@ describe("event-driven skill effects", () => {
 
     expect(enemy.hp).toBeLessThan(144);
     expect(state.events.some((event) => event.type === "status_tick")).toBe(true);
+  });
+
+  it("spawn_vfx_event emits a runtime visual event at projectile hit position", () => {
+    const spec = makeProjectileHitVfxSpec();
+    const enemy = createEnemy({ id: "dummy", position: { x: 10, z: 0 }, max_hp: 200 });
+    const state = createInitialGameStateFromSpec(spec, { enemies: [enemy] });
+
+    castSkill(state, spec, "Q", { x: 20, z: 0 });
+    updateSimulation(state, { x: 0, z: 0 }, 0.5);
+
+    expect(
+      state.events.some(
+        (event) =>
+          event.type === "vfx_event" &&
+          event.skill_slot === "Q" &&
+          event.usage === "hit_flash" &&
+          event.position.x === 10,
+      ),
+    ).toBe(true);
   });
 });

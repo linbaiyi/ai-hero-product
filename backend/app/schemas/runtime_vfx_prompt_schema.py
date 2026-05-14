@@ -9,6 +9,7 @@ from app.schemas.runtime_vfx_schema import RuntimeVfxAssetSpec
 RuntimeVfxPromptUsage = Literal[
     "projectile",
     "impact",
+    "hit_flash",
     "ground_decal",
     "aura",
     "trail",

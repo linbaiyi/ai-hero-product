@@ -81,6 +81,22 @@ describe("RuntimeVfxAssetSpec validation", () => {
     expectInvalid(spec);
   });
 
+  it("hit_flash usage passes with sprite render mode", () => {
+    const spec = cloneSpec();
+    spec.skills.Q.assets.hit_flash = {
+      path: "runtime_textures/Q_hit_flash.png",
+      usage: "hit_flash",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1.2,
+      duration: 0.25,
+      loop: false,
+      color_tint: "#ff8a2a",
+    };
+
+    expect(validateRuntimeVfxAssetSpec(spec).success).toBe(true);
+  });
+
   it("invalid render_mode fails", () => {
     const spec = cloneSpec();
     firstAsset(spec).render_mode = "mesh";

@@ -28,6 +28,7 @@ USAGE_PRIORITY = {
     "cast_circle": 1,
     "zone_tick": 1,
     "impact": 2,
+    "hit_flash": 2,
     "aura": 3,
     "summon_body": 3,
     "summon_spawn": 3,
@@ -54,6 +55,7 @@ REQUIRED_USAGE_BY_SKILL_TYPE = {
 DEFAULT_RENDER_MODE_BY_USAGE = {
     "projectile": "sprite",
     "impact": "sprite",
+    "hit_flash": "sprite",
     "ground_decal": "ground_plane",
     "aura": "aura_ring",
     "trail": "sprite_trail",
@@ -75,6 +77,7 @@ DEFAULT_RENDER_MODE_BY_USAGE = {
 DEFAULT_SCALE_BY_USAGE = {
     "projectile": 1.2,
     "impact": 2.5,
+    "hit_flash": 1.4,
     "ground_decal": 4.0,
     "aura": 2.0,
     "trail": 0.8,
@@ -96,6 +99,7 @@ DEFAULT_SCALE_BY_USAGE = {
 DEFAULT_DURATION_BY_USAGE = {
     "projectile": 0.8,
     "impact": 0.35,
+    "hit_flash": 0.22,
     "ground_decal": 4.0,
     "aura": 3.0,
     "trail": 0.25,

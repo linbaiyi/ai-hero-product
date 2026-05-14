@@ -3,6 +3,7 @@ from app.schemas.vfx_schema import VfxDesign
 VFX_TEXTURE_RESOURCE_TYPES = (
     "projectile",
     "impact",
+    "hit_flash",
     "ground_decal",
     "aura",
     "trail",
@@ -34,6 +35,13 @@ VFX_PROMPT_TEMPLATES: dict[str, str] = {
     "impact": (
         "isolated impact explosion sprite for {skill_name}, {element} element, {keywords}, "
         "radial explosion shape, bright center, outward energy burst, shockwave fragments, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "hit_flash": (
+        "isolated hit feedback flash sprite for {skill_name}, {element} element, {keywords}, "
+        "compact enemy-hit spark, bright contact point, short radial burst, readable damage feedback, "
         "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
         "sprite rendering, additive blending, transparent background, centered composition, "
         "no character, no environment, no text, no logo, no watermark"
