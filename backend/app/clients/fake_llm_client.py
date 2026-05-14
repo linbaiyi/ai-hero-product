@@ -195,16 +195,37 @@ def _generate_playable_spec(prompt: str) -> dict:
 def _generate_project_skill_edit(prompt: str) -> dict:
     slot = _extract_value(prompt, ["Target slot"], "Q")
     instruction = _extract_value(prompt, ["Edit instruction"], "Refine this skill")
+    lower_instruction = instruction.lower()
+    if slot.upper() == "E" and any(
+        keyword in lower_instruction
+        for keyword in ["fire sea", "burning ground", "火海", "灼烧", "燃烧"]
+    ):
+        description = (
+            "Summon a fire spirit to fight alongside the hero and leave a burning fire sea "
+            "at the summon point, damaging and burning enemies within the area."
+        )
+        mechanics = (
+            "The fire spirit keeps its normal attacks while its spawn area becomes a persistent "
+            "fire field that applies burn over time."
+        )
+        balance_notes = (
+            "The summon body remains unchanged; the added fire field rewards careful placement "
+            "and should be limited by duration and area."
+        )
+    else:
+        description = "Single-slot edited skill with the requested gameplay effect integrated into its final behavior."
+        mechanics = "Only the selected skill is changed; the new effect is folded into the skill mechanics."
+        balance_notes = "Other skills should stay locked and unchanged."
     return {
         "slot": slot,
         "name": f"Edited {slot} Skill",
         "type": "主动",
-        "description": f"Single-slot edited skill. {instruction}",
-        "mechanics": f"Only this skill is changed: {instruction}",
+        "description": description,
+        "mechanics": mechanics,
         "cooldown": "10秒",
         "cost": "50法力",
         "damage_type": "魔法伤害",
-        "balance_notes": "Other skills should stay locked and unchanged.",
+        "balance_notes": balance_notes,
     }
 
 

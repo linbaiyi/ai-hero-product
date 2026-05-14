@@ -46,7 +46,8 @@ def test_edit_skill_route_returns_updated_project(tmp_path):
     assert body["preserved_slots"] == ["W", "E", "R"]
     assert body["project"]["locked_skills"]["Q"] is False
     assert body["project"]["locked_skills"]["W"] is True
-    assert "Add a burning debuff." in body["project"]["hero_design"]["skills"][0]["description"]
+    assert "修改后" not in body["project"]["hero_design"]["skills"][0]["description"]
+    assert "Edit instruction:" not in body["project"]["hero_design"]["skills"][0]["description"]
     assert body["project"]["playable_spec"]["skills"][0]["name"] == "Edited Q Projectile"
     assert body["project"]["playable_spec"]["skills"][0]["status_effects"][0]["type"] == "burn"
     assert body["project"]["playable_spec"]["skills"][1]["name"] == "Test Field"
@@ -71,7 +72,8 @@ def test_edit_skill_route_persists_updated_project(tmp_path):
     body = response.json()
     assert body["locked_skills"]["R"] is False
     assert body["skill_artifacts"]["R"]["locked"] is False
-    assert "Make R summon a fire spirit." in body["hero_design"]["skills"][3]["description"]
+    assert "修改后" not in body["hero_design"]["skills"][3]["description"]
+    assert "Edit instruction:" not in body["hero_design"]["skills"][3]["description"]
 
 
 def test_edit_skill_route_handles_visual_unchanged_llm_plan(tmp_path):

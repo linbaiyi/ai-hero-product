@@ -138,7 +138,8 @@ def test_edit_skill_changes_only_selected_slot_and_preserves_others(tmp_path):
     )
 
     skills = response.project.hero_design.skills
-    assert "Make this skill apply burn." in skills[0].description
+    assert "修改后" not in skills[0].description
+    assert "burn" in skills[0].description.lower() or "灼烧" in skills[0].description
     assert skills[1].description == "Original W description"
     assert skills[2].description == "Original E description"
     assert skills[3].description == "Original R description"
@@ -211,7 +212,8 @@ def test_edit_skill_can_use_llm_to_rewrite_only_selected_skill(tmp_path):
     )
 
     assert response.project.hero_design.skills[0].name == "Edited Q Skill"
-    assert "Apply burn on hit." in response.project.hero_design.skills[0].description
+    assert "修改后" not in response.project.hero_design.skills[0].description
+    assert "Edit instruction:" not in response.project.hero_design.skills[0].description
     assert response.project.hero_design.skills[1].name == "Test Field"
     assert response.project.playable_spec is not None
     assert response.project.playable_spec.skills[0].name == "Edited Q Projectile"
@@ -365,7 +367,9 @@ def test_visual_edit_regenerates_effect_textures_but_keeps_unchanged_summon_body
     assert "ground_decal" in e_assets
     assert e_assets["ground_decal"].loop is True
     assert "Edit instruction:" not in response.project.hero_design.skills[2].description
+    assert "修改后" not in response.project.hero_design.skills[2].description
     assert "Edit instruction:" not in response.project.playable_spec.skills[2].description
+    assert "修改后" not in response.project.playable_spec.skills[2].description
 
 
 def test_runtime_vfx_edit_plan_retries_until_actions_are_valid(tmp_path):

@@ -145,7 +145,11 @@ def _generate_single_skill_design(
         raw_skill = llm_client.generate_json(prompt, schema_name="project_skill_edit")
         replacement = SkillDesign.model_validate(raw_skill).model_dump()
         replacement["slot"] = original_skill.get("slot") or slot
-        return _clean_skill_text_fields(replacement)
+        return _finalize_skill_design_texts(
+            replacement,
+            original_skill,
+            edit_instruction,
+        )
     except Exception:
         return None
 
@@ -165,8 +169,10 @@ def _build_single_skill_edit_prompt(
         f"Original skill before this edit: {original_skill}\n"
         f"Edit instruction: {edit_instruction}\n"
         "Rules: preserve the same slot, do not rewrite other skills, no markdown, JSON only. "
-        "Rewrite description/mechanics/balance_notes as polished final text. "
-        "Do not include 'Edit instruction' text or revision logs in any output field."
+        "Rewrite description, mechanics, and balance_notes as complete final skill text. "
+        "Integrate the edit into the old skill meaning instead of appending a change note. "
+        "Do not include 'Edit instruction', 'modified', 'after edit', '修改后', revision logs, "
+        "or the raw user instruction in any output field."
     )
 
 
@@ -696,6 +702,21 @@ def _instruction_requests_fire_sea(edit_instruction: str) -> bool:
     return any(keyword in text for keyword in keywords)
 
 
+def _instruction_requests_burn(edit_instruction: str) -> bool:
+    text = edit_instruction.lower()
+    keywords = [
+        "burn",
+        "burning",
+        "ignite",
+        "scorch",
+        "灼烧",
+        "燃烧",
+        "点燃",
+        "烧灼",
+    ]
+    return any(keyword in text for keyword in keywords)
+
+
 def _delete_runtime_vfx_file_if_exists(path: str) -> None:
     try:
         file_path = resolve_runtime_vfx_file(path)
@@ -927,12 +948,116 @@ def _annotate_skill_design(skill: dict[str, Any], instruction: str) -> dict[str,
 
 def _fallback_rewrite_description(text: str, instruction: str) -> str:
     clean_text = _strip_edit_instruction_lines(text).strip()
-    clean_instruction = instruction.strip()
+    clean_instruction = _strip_edit_instruction_lines(instruction).strip()
     if not clean_text:
-        return clean_instruction
-    if clean_instruction in clean_text:
+        return _rewrite_instruction_as_final_sentence(clean_instruction)
+    if _instruction_semantically_present(clean_text, clean_instruction):
         return clean_text
-    return f"{clean_text}\n修改后：{clean_instruction}"
+    if _instruction_requests_fire_sea(clean_instruction):
+        return _merge_fire_sea_instruction(clean_text)
+    if _instruction_requests_burn(clean_instruction):
+        return _merge_burn_instruction(clean_text)
+    return _merge_general_instruction(clean_text, clean_instruction)
+
+
+def _finalize_skill_design_texts(
+    skill: dict[str, Any],
+    original_skill: dict[str, Any],
+    instruction: str,
+) -> dict[str, Any]:
+    finalized = deepcopy(skill)
+    for field in ["description", "mechanics", "balance_notes"]:
+        value = str(finalized.get(field, "") or "")
+        clean_value = _strip_edit_instruction_lines(value).strip()
+        if _contains_revision_marker(clean_value) or _looks_like_raw_instruction_append(
+            clean_value,
+            instruction,
+        ):
+            clean_value = _fallback_rewrite_description(
+                str(original_skill.get(field, "") or ""),
+                instruction,
+            )
+        finalized[field] = clean_value or _fallback_rewrite_description(
+            str(original_skill.get(field, "") or ""),
+            instruction,
+        )
+    return finalized
+
+
+def _instruction_semantically_present(text: str, instruction: str) -> bool:
+    if not instruction:
+        return True
+    normalized_text = _normalize_text_for_matching(text)
+    normalized_instruction = _normalize_text_for_matching(instruction)
+    if normalized_instruction and normalized_instruction in normalized_text:
+        return True
+    if _instruction_requests_fire_sea(instruction):
+        return any(keyword in normalized_text for keyword in ["火海", "fire sea", "burning ground"])
+    if _instruction_requests_burn(instruction):
+        return any(keyword in normalized_text for keyword in ["灼烧", "burn", "burning", "ignite"])
+    return False
+
+
+def _rewrite_instruction_as_final_sentence(instruction: str) -> str:
+    if _instruction_requests_fire_sea(instruction):
+        return "在目标位置铺开一片持续燃烧的火海，对范围内敌人造成持续伤害并施加灼烧。"
+    if _instruction_requests_burn(instruction):
+        return "技能命中后会点燃敌人，造成持续灼烧伤害。"
+    return _strip_trailing_punctuation(instruction) + "。"
+
+
+def _merge_fire_sea_instruction(text: str) -> str:
+    base = _strip_trailing_punctuation(text)
+    if any(keyword in base for keyword in ["召唤", "召喚", "summon", "Summon"]):
+        return (
+            f"{base}，并在召唤物生成地点铺开一片持续燃烧的火海，"
+            "对范围内敌人造成持续伤害并施加灼烧。"
+        )
+    return f"{base}，同时在目标区域形成持续燃烧的火海，对范围内敌人造成持续伤害并施加灼烧。"
+
+
+def _merge_burn_instruction(text: str) -> str:
+    base = _strip_trailing_punctuation(text)
+    return f"{base}，并对受影响的敌人施加灼烧，造成持续伤害。"
+
+
+def _merge_general_instruction(text: str, instruction: str) -> str:
+    base = _strip_trailing_punctuation(text)
+    addition = _strip_trailing_punctuation(instruction)
+    if not addition:
+        return f"{base}。"
+    return f"{base}，同时具备{addition}的效果。"
+
+
+def _contains_revision_marker(text: str) -> bool:
+    lowered = text.lower()
+    markers = [
+        "edit instruction:",
+        "after edit:",
+        "modified:",
+        "revision:",
+        "修改后：",
+        "修改后:",
+        "修改指令：",
+        "修改指令:",
+    ]
+    return any(marker in lowered for marker in markers)
+
+
+def _looks_like_raw_instruction_append(text: str, instruction: str) -> bool:
+    normalized_text = _normalize_text_for_matching(text)
+    normalized_instruction = _normalize_text_for_matching(instruction)
+    if not normalized_instruction:
+        return False
+    return normalized_text.endswith(normalized_instruction)
+
+
+def _normalize_text_for_matching(text: str) -> str:
+    return "".join(text.lower().split())
+
+
+def _strip_trailing_punctuation(text: str) -> str:
+    return text.strip().rstrip("。.!！；;，,、 ")
 
 
 def _clean_skill_text_fields(skill: dict[str, Any]) -> dict[str, Any]:
@@ -951,7 +1076,10 @@ def _strip_edit_instruction_lines(text: str) -> str:
             continue
         if stripped.startswith("修改指令：") or stripped.startswith("修改后："):
             continue
-        lines.append(line)
+        cleaned = line
+        for marker in ["修改后：", "修改后:", "修改指令：", "修改指令:", "Edit instruction:"]:
+            cleaned = cleaned.replace(marker, "")
+        lines.append(cleaned)
     return "\n".join(lines)
 
 
