@@ -6,6 +6,7 @@ import type {
   SummonState,
   ZoneState,
 } from "../core";
+import { getStatusEffectColor } from "../core/statusRules";
 import {
   createDeadEnemyMaterial,
   createEnemyMaterial,
@@ -295,6 +296,20 @@ function updateEnemyStatusIndicators(object: THREE.Object3D, enemy: EnemyState):
   group.position.y = 1.08;
 
   for (const [index, effect] of enemy.status_effects.entries()) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(Math.max(0.36, enemy.radius * 0.85), 0.025, 6, 32),
+      new THREE.MeshBasicMaterial({
+        color: statusColor(effect.type),
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false,
+      }),
+    );
+    ring.name = `status-ring:${effect.type}`;
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = -0.98 + index * 0.03;
+    group.add(ring);
+
     const marker = new THREE.Mesh(
       new THREE.SphereGeometry(0.09, 8, 6),
       new THREE.MeshBasicMaterial({
@@ -313,17 +328,5 @@ function updateEnemyStatusIndicators(object: THREE.Object3D, enemy: EnemyState):
 }
 
 function statusColor(statusType: string): THREE.ColorRepresentation {
-  if (statusType === "burn") {
-    return "#ff5a1f";
-  }
-  if (statusType === "poison") {
-    return "#84cc16";
-  }
-  if (statusType === "slow") {
-    return "#7ddcff";
-  }
-  if (statusType === "mark") {
-    return "#facc15";
-  }
-  return "#e5e7eb";
+  return getStatusEffectColor(statusType);
 }

@@ -13,6 +13,11 @@ AssetUsage = Literal[
     "aura",
     "trail",
     "summon_body",
+    "burn_loop",
+    "poison_cloud",
+    "mark_sigil",
+    "mark_sigial",
+    "stun_stars",
 ]
 BlendMode = Literal["alpha", "additive", "normal"]
 RenderMode = Literal[
@@ -88,6 +93,11 @@ class RuntimeVfxAssetEntry(BaseModel):
             "aura": {"aura_ring", "ground_plane"},
             "trail": {"sprite_trail", "sprite"},
             "summon_body": {"sprite", "billboard_plane"},
+            "burn_loop": {"sprite", "billboard_plane", "ground_plane"},
+            "poison_cloud": {"sprite", "billboard_plane", "ground_plane"},
+            "mark_sigil": {"sprite", "billboard_plane", "ground_plane"},
+            "mark_sigial": {"sprite", "billboard_plane", "ground_plane"},
+            "stun_stars": {"sprite", "billboard_plane"},
         }
         if self.render_mode not in allowed_render_modes[self.usage]:
             raise ValueError(

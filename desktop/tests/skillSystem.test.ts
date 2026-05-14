@@ -165,6 +165,52 @@ describe("Skill System", () => {
     expect(state.events.some((event) => event.type === "status_tick")).toBe(true);
   });
 
+  it("marked enemies take amplified follow-up damage", () => {
+    const enemy = createEnemy({ id: "dummy", position: { x: 14, z: 0 }, max_hp: 300 });
+    enemy.status_effects.push({
+      id: "mark_1",
+      type: "mark",
+      source_skill_slot: "Q",
+      duration_remaining: 3,
+      tick_interval: 1,
+      tick_timer: 1,
+      damage: 0,
+      value: 0.5,
+    });
+    const state = createInitialGameStateFromSpec(defaultPlayableSpec, {
+      enemies: [enemy],
+    });
+
+    castSkill(state, defaultPlayableSpec, "Q", { x: 20, z: 0 });
+    updateSimulation(state, { x: 0, z: 0 }, 1);
+
+    expect(enemy.hp).toBe(120);
+    expect(state.events.find((event) => event.type === "damage")).toMatchObject({
+      amount: 180,
+    });
+  });
+
+  it("poison status uses a different lower tick damage rule than burn", () => {
+    const enemy = createEnemy({ id: "dummy", position: { x: 0, z: 0 }, max_hp: 100 });
+    enemy.status_effects.push({
+      id: "poison_1",
+      type: "poison",
+      source_skill_slot: "Q",
+      duration_remaining: 3,
+      tick_interval: 1,
+      tick_timer: 0,
+      damage: 10,
+      value: 0,
+    });
+    const state = createInitialGameStateFromSpec(defaultPlayableSpec, {
+      enemies: [enemy],
+    });
+
+    updateSimulation(state, { x: 0, z: 0 }, 0.1);
+
+    expect(enemy.hp).toBe(92);
+  });
+
   it("projectile expires after range", () => {
     const state = createInitialGameStateFromSpec(defaultPlayableSpec);
     castSkill(state, defaultPlayableSpec, "Q", { x: 20, z: 0 });
@@ -310,6 +356,28 @@ describe("Skill System", () => {
 
     expect(enemy.hp).toBe(82);
     expect(state.events.some((event) => event.type === "summon_attack")).toBe(true);
+  });
+
+  it("summon does not attack stunned enemies", () => {
+    const spec = makeSummonSpec();
+    const enemy = createEnemy({ id: "dummy", position: { x: 4, z: 2 }, max_hp: 100 });
+    enemy.status_effects.push({
+      id: "stun_1",
+      type: "stun",
+      source_skill_slot: "Q",
+      duration_remaining: 1,
+      tick_interval: 1,
+      tick_timer: 1,
+      damage: 0,
+      value: 1,
+    });
+    const state = createInitialGameStateFromSpec(spec, { enemies: [enemy] });
+    castSkill(state, spec, "Q", { x: 3, z: 2 });
+
+    updateSimulation(state, { x: 0, z: 0 }, 0.1);
+
+    expect(enemy.hp).toBe(100);
+    expect(state.events.some((event) => event.type === "summon_attack")).toBe(false);
   });
 
   it("summon expires after duration", () => {

@@ -30,6 +30,11 @@ const RUNTIME_VFX_USAGES = [
   "aura",
   "trail",
   "summon_body",
+  "burn_loop",
+  "poison_cloud",
+  "mark_sigil",
+  "mark_sigial",
+  "stun_stars",
 ] as const;
 const RUNTIME_VFX_RENDER_MODES = [
   "sprite",
@@ -310,6 +315,11 @@ function validateUsageRenderMode(
     aura: ["aura_ring", "ground_plane"],
     trail: ["sprite_trail", "sprite"],
     summon_body: ["sprite", "billboard_plane"],
+    burn_loop: ["sprite", "billboard_plane", "ground_plane"],
+    poison_cloud: ["sprite", "billboard_plane", "ground_plane"],
+    mark_sigil: ["sprite", "billboard_plane", "ground_plane"],
+    mark_sigial: ["sprite", "billboard_plane", "ground_plane"],
+    stun_stars: ["sprite", "billboard_plane"],
   };
 
   if (!allowedByUsage[usage].includes(renderMode)) {

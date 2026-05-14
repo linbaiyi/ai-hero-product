@@ -56,6 +56,16 @@ def burning_hero_design() -> dict:
     }
 
 
+def crowd_control_hero_design() -> dict:
+    return {
+        "hero_name": "Frost Sigil Hunter",
+        "hero_title": "Crowd Control Ranger",
+        "role": "controller",
+        "background": "Her frost traps slow enemies, apply a marked target sigil, and briefly stun elite targets.",
+        "core_tags": ["ice", "slow", "mark", "stun"],
+    }
+
+
 def valid_spec() -> dict:
     return {
         "version": "1.0",
@@ -223,6 +233,19 @@ def test_generate_maps_burning_design_to_burn_status_effects():
         skill for skill in spec.skills if any(effect.type == "burn" for effect in skill.status_effects)
     ]
     assert burn_skills
+
+
+def test_generate_maps_control_design_to_slow_mark_and_stun_status_effects():
+    service = PlayableSpecService(llm_client=ValidPlayableLLMClient())
+
+    spec = service.generate(crowd_control_hero_design())
+
+    status_types = {
+        effect.type
+        for skill in spec.skills
+        for effect in skill.status_effects
+    }
+    assert {"slow", "mark", "stun"}.issubset(status_types)
 
 
 def test_llm_error_falls_back_to_safe_spec_from_json_string():

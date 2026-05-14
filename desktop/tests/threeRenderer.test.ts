@@ -123,6 +123,7 @@ describe("Three renderer", () => {
     const enemy = handles.handles.enemies.get(state.enemies[0].id);
     expect(enemy?.getObjectByName("status-effects")).toBeInstanceOf(THREE.Group);
     expect(enemy?.getObjectByName("status:burn")).toBeInstanceOf(THREE.Mesh);
+    expect(enemy?.getObjectByName("status-ring:burn")).toBeInstanceOf(THREE.Mesh);
   });
 
   it("updateGameState updates hero mesh position after movement", () => {

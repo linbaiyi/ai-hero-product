@@ -149,6 +149,8 @@ function PlaytestView({
     }
   };
 
+  const enemyStatuses = snapshot.enemy_statuses ?? [];
+
   return (
     <div className="playtest-view">
       <div className="view-header flex flex-wrap items-center justify-between gap-3">
@@ -234,6 +236,29 @@ function PlaytestView({
                 </div>
               ))}
             </div>
+          </section>
+
+          <section className="playtest-status-block">
+            <h3>Enemy Status</h3>
+            {enemyStatuses.length > 0 ? (
+              <div className="playtest-help-list">
+                {enemyStatuses.map((enemy) => (
+                  <span key={enemy.enemy_id}>
+                    {enemy.enemy_name}:{" "}
+                    {enemy.statuses
+                      .map(
+                        (status) =>
+                          `${status.label} ${Math.max(0, status.remaining).toFixed(1)}s`,
+                      )
+                      .join(" / ")}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="playtest-help-list">
+                <span>暂无敌人状态效果</span>
+              </div>
+            )}
           </section>
 
           <section className="playtest-status-block">

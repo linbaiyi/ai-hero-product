@@ -1,6 +1,7 @@
 import type { DamageEvent, EnemyState, Vec2 } from "./types";
 import { damageEnemy, isEnemyAlive } from "./enemy";
 import { findEnemiesInRadius } from "./collision";
+import { getStatusDamageTakenMultiplier } from "./statusRules";
 
 export function applyDamageToEnemy(
   enemy: EnemyState,
@@ -9,10 +10,11 @@ export function applyDamageToEnemy(
   if (!isEnemyAlive(enemy)) {
     return null;
   }
-  damageEnemy(enemy, amount);
+  const finalAmount = amount * getDamageTakenMultiplier(enemy);
+  damageEnemy(enemy, finalAmount);
   return {
     enemy_id: enemy.id,
-    amount: Math.max(0, amount),
+    amount: Math.max(0, finalAmount),
     remaining_hp: enemy.hp,
     is_alive: enemy.is_alive,
   };
@@ -27,4 +29,8 @@ export function applyDamageToEnemiesInRadius(
   return findEnemiesInRadius(enemies, center, radius)
     .map((enemy) => applyDamageToEnemy(enemy, amount))
     .filter((event): event is DamageEvent => Boolean(event));
+}
+
+function getDamageTakenMultiplier(enemy: EnemyState): number {
+  return getStatusDamageTakenMultiplier(enemy.status_effects);
 }

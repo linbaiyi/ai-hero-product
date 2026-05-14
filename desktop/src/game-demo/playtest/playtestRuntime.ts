@@ -13,6 +13,7 @@ import {
   type Vec2,
   updateSimulation,
 } from "../core";
+import { getStatusEffectLabel } from "../core/statusRules";
 import { createInitialGameStateFromSpecAndMap, defaultTrainingMap } from "../maps";
 import {
   clearGameState,
@@ -60,6 +61,17 @@ export type PlaytestSnapshot = {
   runtime_vfx_instance_count: number;
   no_cooldown_enabled: boolean;
   show_vfx_range_debug: boolean;
+  enemy_statuses: PlaytestEnemyStatusSnapshot[];
+};
+
+export type PlaytestEnemyStatusSnapshot = {
+  enemy_id: string;
+  enemy_name: string;
+  statuses: {
+    type: string;
+    label: string;
+    remaining: number;
+  }[];
 };
 
 export type PlaytestRuntimeOptions = {
@@ -164,6 +176,17 @@ export function createPlaytestSnapshot(
     runtime_vfx_instance_count: options.runtimeVfxInstanceCount ?? 0,
     no_cooldown_enabled: options.noCooldownEnabled ?? false,
     show_vfx_range_debug: options.showVfxRangeDebug ?? false,
+    enemy_statuses: state.enemies
+      .filter((enemy) => enemy.is_alive && enemy.status_effects.length > 0)
+      .map((enemy) => ({
+        enemy_id: enemy.id,
+        enemy_name: enemy.name,
+        statuses: enemy.status_effects.map((effect) => ({
+          type: effect.type,
+          label: getStatusEffectLabel(effect.type),
+          remaining: effect.duration_remaining,
+        })),
+      })),
   };
 }
 

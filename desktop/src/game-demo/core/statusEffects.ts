@@ -1,5 +1,6 @@
 import type { SkillSlot, SkillStatusEffectSpec } from "../specs/playableSpecTypes";
 import { applyDamageToEnemy } from "./damage";
+import { getStatusTickDamage } from "./statusRules";
 import type { EnemyState, GameEvent } from "./types";
 
 const DEFAULT_TICK_INTERVAL = 1;
@@ -68,12 +69,12 @@ export function updateEnemyStatusEffects(
 
       while (
         enemy.is_alive &&
-        effect.damage > 0 &&
+        getStatusTickDamage(effect) > 0 &&
         effect.tick_interval > 0 &&
         effect.tick_timer <= 0 &&
         effect.duration_remaining >= 0
       ) {
-        const damageEvent = applyDamageToEnemy(enemy, effect.damage);
+        const damageEvent = applyDamageToEnemy(enemy, getStatusTickDamage(effect));
         if (damageEvent) {
           events.push({
             type: "status_tick",

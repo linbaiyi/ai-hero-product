@@ -3,6 +3,7 @@ import { clampPositionToBounds } from "../world";
 import { applyDamageToEnemy } from "../damage";
 import { distanceVec2 } from "../vector";
 import { applyStatusEffectsToEnemy } from "../statusEffects";
+import { isActionBlockedByStatus } from "../statusRules";
 import type { GameEvent, GameState, SummonState, Vec2 } from "../types";
 
 const DEFAULT_SUMMON_HP = 120;
@@ -76,6 +77,9 @@ function attackNearestEnemy(state: GameState, summon: SummonState): void {
     .sort((a, b) => a.distance - b.distance)[0]?.enemy;
 
   if (!target) {
+    return;
+  }
+  if (isActionBlockedByStatus(target.status_effects)) {
     return;
   }
 

@@ -266,6 +266,21 @@ describe("RuntimeVfxAssetSpec validation", () => {
     expectInvalid(spec);
   });
 
+  it("status runtime vfx usages pass validation", () => {
+    const spec = cloneSpec();
+    spec.skills.Q.assets.status = {
+      path: "runtime_textures/Q_burn_loop.png",
+      usage: "burn_loop",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1,
+      duration: 3,
+      loop: true,
+    };
+
+    expect(validateRuntimeVfxAssetSpec(spec).success).toBe(true);
+  });
+
   it("normalizeRuntimeVfxAssetSpec sorts skills Q/W/E/R", () => {
     const spec = cloneSpec();
     spec.skills = {

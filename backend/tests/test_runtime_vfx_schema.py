@@ -285,3 +285,20 @@ def test_summon_body_requires_sprite_or_billboard_plane():
 
     with pytest.raises(ValidationError):
         validate(data)
+
+
+def test_status_runtime_vfx_usage_passes():
+    data = load_example()
+    data["skills"]["Q"]["assets"]["status"] = {
+        "path": "runtime_textures/Q_burn_loop.png",
+        "usage": "burn_loop",
+        "blend_mode": "additive",
+        "render_mode": "sprite",
+        "scale": 1,
+        "duration": 3,
+        "loop": True,
+    }
+
+    spec = validate(data)
+
+    assert spec.skills["Q"].assets["status"].usage == "burn_loop"

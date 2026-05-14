@@ -204,8 +204,8 @@ def add_status_effects_when_requested(
     spec: dict[str, Any],
     hero_design: Any | None,
 ) -> dict[str, Any]:
-    status_type = _infer_status_effect_type(hero_design)
-    if status_type is None:
+    status_types = _infer_status_effect_types(hero_design)
+    if not status_types:
         return spec
 
     skills = spec.get("skills")
@@ -218,16 +218,10 @@ def add_status_effects_when_requested(
         effects = skill.setdefault("status_effects", [])
         if not isinstance(effects, list):
             skill["status_effects"] = effects = []
-        if any(isinstance(effect, dict) and effect.get("type") == status_type for effect in effects):
-            continue
-        effects.append(
-            {
-                "type": status_type,
-                "duration": 3.0 if status_type == "burn" else 4.0,
-                "tick_interval": 1.0,
-                "damage": _status_damage_for_skill(skill, status_type),
-            }
-        )
+        for status_type in status_types:
+            if any(isinstance(effect, dict) and effect.get("type") == status_type for effect in effects):
+                continue
+            effects.append(_status_effect_for_skill(skill, status_type))
     return spec
 
 
@@ -328,8 +322,9 @@ def _skill_mentions_summon(skill: dict[str, Any]) -> bool:
     return any(keyword in text for keyword in keywords)
 
 
-def _infer_status_effect_type(source: Any | None) -> str | None:
+def _infer_status_effect_types(source: Any | None) -> list[str]:
     text = _to_searchable_text(source)
+    status_types: list[str] = []
     if any(
         keyword in text
         for keyword in [
@@ -345,10 +340,22 @@ def _infer_status_effect_type(source: Any | None) -> str | None:
             "火焰印记",
         ]
     ):
-        return "burn"
+        status_types.append("burn")
     if any(keyword in text for keyword in ["poison", "toxin", "venom", "中毒", "毒"]):
-        return "poison"
-    return None
+        status_types.append("poison")
+    if any(
+        keyword in text
+        for keyword in ["slow", "snare", "frost", "chill", "freeze", "减速", "冰霜", "寒冷"]
+    ):
+        status_types.append("slow")
+    if any(
+        keyword in text
+        for keyword in ["mark", "marked", "sigil", "vulnerable", "易伤", "标记", "印记"]
+    ):
+        status_types.append("mark")
+    if any(keyword in text for keyword in ["stun", "daze", "disable", "眩晕", "击晕", "定身"]):
+        status_types.append("stun")
+    return status_types
 
 
 def _skill_can_apply_status(skill: dict[str, Any]) -> bool:
@@ -362,6 +369,33 @@ def _status_damage_for_skill(skill: dict[str, Any], status_type: str) -> float:
         return 8.0 if status_type == "burn" else 6.0
     multiplier = 0.12 if status_type == "burn" else 0.1
     return max(4.0, min(30.0, round(float(base_damage) * multiplier, 2)))
+
+
+def _status_effect_for_skill(skill: dict[str, Any], status_type: str) -> dict[str, Any]:
+    if status_type in {"burn", "poison"}:
+        return {
+            "type": status_type,
+            "duration": 3.0 if status_type == "burn" else 4.0,
+            "tick_interval": 1.0,
+            "damage": _status_damage_for_skill(skill, status_type),
+        }
+    if status_type == "slow":
+        return {
+            "type": "slow",
+            "duration": 3.0,
+            "value": 0.35,
+        }
+    if status_type == "mark":
+        return {
+            "type": "mark",
+            "duration": 4.0,
+            "value": 0.25,
+        }
+    return {
+        "type": "stun",
+        "duration": 1.0,
+        "value": 1.0,
+    }
 
 
 def _to_searchable_text(value: Any | None) -> str:

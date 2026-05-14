@@ -14,7 +14,12 @@ export type RuntimeVfxUsage =
   | "ground_decal"
   | "aura"
   | "trail"
-  | "summon_body";
+  | "summon_body"
+  | "burn_loop"
+  | "poison_cloud"
+  | "mark_sigil"
+  | "mark_sigial"
+  | "stun_stars";
 
 export type RuntimeVfxRenderMode =
   | "sprite"

@@ -151,6 +151,28 @@ describe("playtest runtime helpers", () => {
     );
   });
 
+  it("createPlaytestSnapshot exposes readable enemy status effects", () => {
+    const state = createPlaytestInitialState();
+    state.enemies[0].status_effects.push({
+      id: "burn_1",
+      type: "burn",
+      source_skill_slot: "Q",
+      duration_remaining: 2.35,
+      tick_interval: 1,
+      tick_timer: 1,
+      damage: 10,
+      value: 0,
+    });
+
+    const snapshot = createPlaytestSnapshot(state);
+
+    expect(snapshot.enemy_statuses[0]).toMatchObject({
+      enemy_id: state.enemies[0].id,
+      statuses: [{ type: "burn", label: "灼烧" }],
+    });
+    expect(snapshot.enemy_statuses[0].statuses[0].remaining).toBeCloseTo(2.35);
+  });
+
   it("runtime helpers initialize without runtimeVfxAssetSpec", () => {
     const state = createPlaytestInitialState();
     const snapshot = createPlaytestSnapshot(state);

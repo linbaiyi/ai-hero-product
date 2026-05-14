@@ -41,6 +41,19 @@ Hard requirements:
     express that as status_effects on the relevant skill. Supported status_effects:
     burn, poison, slow, mark, stun.
 
+Semantic mapping rules:
+- First map each skill description into a structured intent:
+  status_effects, trigger, target, duration, damage_rule.
+- trigger should be one of: on_hit, on_tick, on_cast, on_summon_attack, passive.
+- target should be one of: enemy, enemies_in_radius, summon, hero, ground_zone.
+- damage_rule should describe whether the effect is direct_damage, dot_damage,
+  slow_only, mark_damage_taken_bonus, stun_only, or mixed.
+- The final JSON must still match HeroPlayableSpec v1. Encode executable parts
+  in skill.status_effects using only: type, duration, tick_interval, damage, value.
+- Use damage for burn/poison tick damage.
+- Use value for slow movement reduction, mark damage taken bonus, and stun control strength.
+- Do not invent unsupported scripts or custom behavior.
+
 Skill required fields:
 - projectile: damage, range, radius, speed
 - aoe: damage, radius
