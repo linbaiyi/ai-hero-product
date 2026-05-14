@@ -58,6 +58,44 @@ function createSummonRuntimeVfxSpec(): RuntimeVfxAssetSpec {
   return spec;
 }
 
+function createSummonGroundDecalRuntimeVfxSpec(): RuntimeVfxAssetSpec {
+  const spec = JSON.parse(JSON.stringify(defaultRuntimeVfxAssetSpec)) as RuntimeVfxAssetSpec;
+  spec.skills.E.skill_type = "summon";
+  spec.skills.E.assets = {
+    summon_body: {
+      path: "runtime_vfx/generated/hero/E_summon_body.png",
+      usage: "summon_body",
+      blend_mode: "alpha",
+      render_mode: "sprite",
+      scale: 1.6,
+      duration: 8,
+      loop: false,
+      color_tint: "#ff5a1f",
+    },
+    aura: {
+      path: "runtime_vfx/generated/hero/E_aura.png",
+      usage: "aura",
+      blend_mode: "additive",
+      render_mode: "aura_ring",
+      scale: 2,
+      duration: 8,
+      loop: true,
+      color_tint: "#ff8a2a",
+    },
+    ground_decal: {
+      path: "runtime_vfx/generated/hero/E_ground_decal.png",
+      usage: "ground_decal",
+      blend_mode: "additive",
+      render_mode: "ground_plane",
+      scale: 4,
+      duration: 8,
+      loop: true,
+      color_tint: "#ff5a1f",
+    },
+  };
+  return spec;
+}
+
 describe("runtime texture loader and VFX renderer", () => {
   it("isSafeRuntimeTexturePath accepts runtime_vfx relative paths", () => {
     expect(
@@ -117,7 +155,8 @@ describe("runtime texture loader and VFX renderer", () => {
     renderGameState(handles, state);
     updateTextureVfx(handles, state, spec, createFakeTextureCache());
 
-    expect(handles.handles.texture_vfx?.summon_bodies.get("summon_1")).toBeInstanceOf(
+    expect(handles.handles.texture_vfx?.warnings).toEqual([]);
+    expect(handles.handles.texture_vfx?.summon_bodies.get("summon_body:summon_1")).toBeInstanceOf(
       THREE.Sprite,
     );
     const fallback = handles.handles.summons.get("summon_1");
@@ -125,6 +164,44 @@ describe("runtime texture loader and VFX renderer", () => {
     expect(fallback?.getObjectByName("summon-fallback-body")?.visible).toBe(false);
     expect(fallback?.getObjectByName("summon-fallback-core")?.visible).toBe(false);
     expect(fallback?.getObjectByName("health-bar")?.visible).toBe(true);
+  });
+
+  it("summon ground_decal texture is rendered at the summon position", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.summons.push({
+      id: "summon_1",
+      skill_slot: "E",
+      name: "Flame Spirit",
+      position: { x: 2, z: 1 },
+      max_hp: 120,
+      hp: 120,
+      radius: 1.4,
+      damage: 12,
+      attack_range: 6,
+      attack_interval: 1,
+      attack_timer: 0,
+      duration_remaining: 5,
+      status_effects: [],
+      is_alive: true,
+    });
+    const spec = createSummonGroundDecalRuntimeVfxSpec();
+
+    renderGameState(handles, state);
+    updateTextureVfx(handles, state, spec, createFakeTextureCache(createTextureWithSize(512, 512)));
+
+    const decal = handles.handles.texture_vfx?.summon_ground_decals.get(
+      "summon_ground_decal:summon_1",
+    );
+    expect(decal).toBeInstanceOf(THREE.Mesh);
+    expect(decal?.position.x).toBe(2);
+    expect(decal?.position.z).toBe(1);
+    expect(decal?.scale.x).toBeCloseTo(2.8, 1);
+    const proceduralIds = [
+      ...(handles.handles.texture_vfx?.procedural_instances.keys() ?? []),
+    ];
+    expect(proceduralIds).toContain("procedural:summon_ground_glow:summon_1");
+    expect(proceduralIds).toContain("procedural:summon_ground_ring:summon_1");
   });
 
   it("updateTextureVfx does not mutate GameState", () => {

@@ -68,4 +68,25 @@ describe("ProjectHistoryPanel", () => {
     expect(onOpen).toHaveBeenCalledWith("desktop_123");
     expect(onDelete).toHaveBeenCalledWith("desktop_123");
   });
+
+  it("imports a selected zip file", () => {
+    const onImport = vi.fn();
+    render(
+      <ProjectHistoryPanel
+        onDelete={vi.fn()}
+        onImport={onImport}
+        onOpen={vi.fn()}
+        onRefresh={vi.fn()}
+        projects={[]}
+      />,
+    );
+    const file = new File(["zip"], "project.zip", { type: "application/zip" });
+
+    fireEvent.click(screen.getByRole("button", { name: "导入项目" }));
+    fireEvent.change(document.querySelector("input[type='file']") as HTMLInputElement, {
+      target: { files: [file] },
+    });
+
+    expect(onImport).toHaveBeenCalledWith(file);
+  });
 });

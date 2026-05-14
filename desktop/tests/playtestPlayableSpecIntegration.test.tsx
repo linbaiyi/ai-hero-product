@@ -33,7 +33,9 @@ vi.mock("../src/api/projectApi", () => ({
   saveProject: vi.fn(),
   listProjects: vi.fn(),
   getProject: vi.fn(),
+  importProjectArchive: vi.fn(),
   deleteProject: vi.fn(),
+  updateProjectSkill: vi.fn(),
 }));
 vi.mock("../src/api/playableApi", () => ({ generatePlayableSpec: vi.fn() }));
 vi.mock("../src/game-demo/playtest/playtestRuntime", () => {

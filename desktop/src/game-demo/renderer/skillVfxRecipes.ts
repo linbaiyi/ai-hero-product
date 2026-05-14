@@ -5,7 +5,7 @@ export type SkillVfxTrigger = "cast" | "travel" | "hit" | "active" | "expire";
 export type SkillVfxRecipeItem = {
   usage: RuntimeVfxUsage;
   trigger: SkillVfxTrigger;
-  follow?: "hero" | "projectile" | "zone" | "none";
+  follow?: "hero" | "projectile" | "zone" | "summon" | "none";
   duration?: number;
 };
 
@@ -29,7 +29,11 @@ export const defaultSkillVfxRecipes: Record<RuntimeVfxSlot, SkillVfxRecipe> = {
   },
   E: {
     slot: "E",
-    items: [{ usage: "aura", trigger: "active", follow: "hero" }],
+    items: [
+      { usage: "summon_body", trigger: "active", follow: "summon" },
+      { usage: "aura", trigger: "active", follow: "summon" },
+      { usage: "ground_decal", trigger: "active", follow: "summon" },
+    ],
   },
   R: {
     slot: "R",

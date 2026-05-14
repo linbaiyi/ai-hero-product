@@ -17,8 +17,10 @@ describe("skill VFX recipes", () => {
     expect(recipeHasUsage(defaultSkillVfxRecipes.W, "ground_decal")).toBe(true);
   });
 
-  it("E recipe contains aura", () => {
+  it("E recipe contains summon body, aura, and ground_decal", () => {
+    expect(recipeHasUsage(defaultSkillVfxRecipes.E, "summon_body")).toBe(true);
     expect(recipeHasUsage(defaultSkillVfxRecipes.E, "aura")).toBe(true);
+    expect(recipeHasUsage(defaultSkillVfxRecipes.E, "ground_decal")).toBe(true);
   });
 
   it("R recipe contains ground_decal and impact", () => {

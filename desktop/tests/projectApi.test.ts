@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteProject,
   getProject,
+  importProjectArchive,
   listProjects,
   saveProject,
+  updateProjectSkill,
 } from "../src/api/projectApi";
 import { projectRecord, projectSummary } from "./projectTestData";
 
@@ -84,12 +86,87 @@ describe("projectApi", () => {
     );
   });
 
+  it("importProjectArchive posts zip to /api/projects/import", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project_id: "desktop_123",
+        imported: true,
+        project: projectRecord,
+      }),
+    });
+    const file = new File(["zip"], "project.zip", { type: "application/zip" });
+
+    await expect(importProjectArchive(file)).resolves.toEqual({
+      project_id: "desktop_123",
+      imported: true,
+      project: projectRecord,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/projects/import"),
+      expect.objectContaining({
+        method: "POST",
+        body: file,
+      }),
+    );
+  });
+
+  it("updateProjectSkill posts to project skill edit endpoint", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        project: {
+          ...projectRecord,
+          locked_skills: { Q: false, W: true, E: true, R: true },
+        },
+        changed_slot: "Q",
+        preserved_slots: ["W", "E", "R"],
+      }),
+    });
+
+    await expect(
+      updateProjectSkill("desktop_123", "Q", {
+        edit_instruction: "Add burn to Q.",
+      }),
+    ).resolves.toMatchObject({
+      changed_slot: "Q",
+      preserved_slots: ["W", "E", "R"],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/projects/desktop_123/skills/Q/edit"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(String),
+      }),
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.edit_instruction).toBe("Add burn to Q.");
+  });
+
   it("throws not found message for 404", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404 });
 
     await expect(getProject("missing")).rejects.toThrow(
       "项目不存在或已被删除。",
     );
+  });
+
+  it("surfaces backend detail message for failed skill edit", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({
+        detail: { message: "Runtime VFX texture regeneration failed" },
+      }),
+    });
+
+    await expect(
+      updateProjectSkill("desktop_123", "E", {
+        edit_instruction: "Add fire sea.",
+      }),
+    ).rejects.toThrow("Runtime VFX texture regeneration failed");
   });
 
   it("throws Chinese connection error when fetch rejects", async () => {

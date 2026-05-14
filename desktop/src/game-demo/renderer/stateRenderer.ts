@@ -54,6 +54,7 @@ export function clearGameState(sceneHandles: RenderedGameScene): void {
   sceneHandles.handles.texture_vfx?.buffs.clear();
   sceneHandles.handles.texture_vfx?.summon_bodies.clear();
   sceneHandles.handles.texture_vfx?.summon_auras.clear();
+  sceneHandles.handles.texture_vfx?.summon_ground_decals.clear();
   sceneHandles.handles.texture_vfx?.trails.clear();
   sceneHandles.handles.texture_vfx?.impacts.clear();
 }

@@ -156,6 +156,7 @@ export function clearTextureVfx(sceneHandles: RenderedGameScene): void {
     handles.buffs,
     handles.summon_bodies,
     handles.summon_auras,
+    handles.summon_ground_decals,
     handles.trails,
     handles.impacts,
   ]) {
@@ -423,8 +424,36 @@ function updateSummonComposition(
   handles: TextureVfxHandles,
 ): void {
   const activeIds = new Set(state.summons.map((summon) => summon.id));
-  removeMissingPersistentInstances(sceneHandles, handles.summon_bodies, handles, activeIds);
-  removeMissingPersistentInstances(sceneHandles, handles.summon_auras, handles, activeIds);
+  removeMissingPersistentInstances(
+    sceneHandles,
+    handles.summon_bodies,
+    handles,
+    new Set([...activeIds].map(getSummonBodyTextureId)),
+  );
+  removeMissingPersistentInstances(
+    sceneHandles,
+    handles.summon_auras,
+    handles,
+    new Set([...activeIds].map(getSummonAuraTextureId)),
+  );
+  removeMissingPersistentInstances(
+    sceneHandles,
+    handles.summon_ground_decals,
+    handles,
+    new Set([...activeIds].map(getSummonGroundDecalTextureId)),
+  );
+  removeMissingProceduralPersistentInstances(
+    sceneHandles,
+    handles,
+    "procedural:summon_ground_glow:",
+    activeIds,
+  );
+  removeMissingProceduralPersistentInstances(
+    sceneHandles,
+    handles,
+    "procedural:summon_ground_ring:",
+    activeIds,
+  );
   removeMissingProceduralPersistentInstances(sceneHandles, handles, "procedural:summon_ring:", activeIds);
   removeMissingProceduralPersistentInstances(sceneHandles, handles, "procedural:summon_sparks:", activeIds);
 
@@ -436,7 +465,7 @@ function updateSummonComposition(
       textureCache,
       handles,
       objectMap: handles.summon_bodies,
-      id: summon.id,
+      id: getSummonBodyTextureId(summon.id),
       kind: "summon_body",
       slot: summon.skill_slot,
       usage: "summon_body",
@@ -460,7 +489,7 @@ function updateSummonComposition(
       textureCache,
       handles,
       objectMap: handles.summon_auras,
-      id: summon.id,
+      id: getSummonAuraTextureId(summon.id),
       kind: "aura",
       slot: summon.skill_slot,
       usage: "aura",
@@ -471,6 +500,63 @@ function updateSummonComposition(
       sourceId: summon.id,
       followTarget: "summon",
     });
+
+    const groundDecalAsset = findAssetForSkillUsage(
+      spec,
+      summon.skill_slot,
+      "ground_decal",
+    );
+    const groundDecalTexture = groundDecalAsset
+      ? textureCache.get(groundDecalAsset.path) ?? undefined
+      : undefined;
+    upsertPersistentInstance({
+      sceneHandles,
+      textureCache,
+      handles,
+      objectMap: handles.summon_ground_decals,
+      id: getSummonGroundDecalTextureId(summon.id),
+      kind: "ground_decal",
+      slot: summon.skill_slot,
+      usage: "ground_decal",
+      asset: groundDecalAsset,
+      position: summonAuraPosition(summon),
+      scale: getGroundDecalVisualScale(summon.radius, groundDecalAsset, groundDecalTexture),
+      duration: Math.max(0.1, groundDecalAsset?.duration ?? summon.duration_remaining),
+      sourceId: summon.id,
+      followTarget: "summon",
+    });
+    if (groundDecalAsset) {
+      upsertProceduralInstance(
+        sceneHandles,
+        handles,
+        `procedural:summon_ground_glow:${summon.id}`,
+        createGlowDisc(summonAuraPosition(summon), summon.radius, {
+          id: `procedural:summon_ground_glow:${summon.id}`,
+          color: groundDecalAsset.color_tint ?? auraAsset?.color_tint ?? bodyAsset?.color_tint ?? "#ff8a2a",
+          opacity: 0.2,
+          radius: computeGlowDiscRadius(summon.radius),
+          duration: Math.max(0.1, summon.duration_remaining),
+          source_id: summon.id,
+          follow_target: "summon",
+          persistent: true,
+        }),
+      );
+      upsertProceduralInstance(
+        sceneHandles,
+        handles,
+        `procedural:summon_ground_ring:${summon.id}`,
+        createRotatingRing(summonAuraPosition(summon), summon.radius, {
+          id: `procedural:summon_ground_ring:${summon.id}`,
+          color: groundDecalAsset.color_tint ?? auraAsset?.color_tint ?? bodyAsset?.color_tint ?? "#ffb15a",
+          opacity: 0.38,
+          radius: computeRotatingRingRadius(summon.radius),
+          duration: Math.max(0.1, summon.duration_remaining),
+          source_id: summon.id,
+          follow_target: "summon",
+          persistent: true,
+        }),
+      );
+    }
     upsertProceduralInstance(
       sceneHandles,
       handles,
@@ -974,7 +1060,9 @@ function updateFollowTarget(instance: RuntimeVfxInstance, state: GameState): voi
     const summon = state.summons.find((candidate) => candidate.id === instance.source_id);
     if (summon) {
       instance.object3d.position.copy(
-        instance.kind === "aura" ? summonAuraPosition(summon) : summonBodyPosition(summon),
+        instance.kind === "aura" || instance.kind === "ground_decal"
+          ? summonAuraPosition(summon)
+          : summonBodyPosition(summon),
       );
     }
   }
@@ -1140,6 +1228,9 @@ function removeInstanceById(
   handles.projectiles.delete(id);
   handles.zones.delete(id);
   handles.buffs.delete(id);
+  handles.summon_bodies.delete(id);
+  handles.summon_auras.delete(id);
+  handles.summon_ground_decals.delete(id);
   handles.trails.delete(id);
   handles.impacts.delete(id);
 }
@@ -1274,6 +1365,18 @@ function summonAuraPosition(summon: SummonState): THREE.Vector3 {
   return new THREE.Vector3(summon.position.x, 0.08, summon.position.z);
 }
 
+function getSummonBodyTextureId(summonId: string): string {
+  return `summon_body:${summonId}`;
+}
+
+function getSummonAuraTextureId(summonId: string): string {
+  return `summon_aura:${summonId}`;
+}
+
+function getSummonGroundDecalTextureId(summonId: string): string {
+  return `summon_ground_decal:${summonId}`;
+}
+
 function setFallbackSummonBodyVisible(object: THREE.Object3D, visible: boolean): void {
   const body = object.getObjectByName("summon-fallback-body");
   const core = object.getObjectByName("summon-fallback-core");
@@ -1302,6 +1405,7 @@ function ensureTextureHandles(sceneHandles: RenderedGameScene): TextureVfxHandle
       buffs: new Map(),
       summon_bodies: new Map(),
       summon_auras: new Map(),
+      summon_ground_decals: new Map(),
       trails: new Map(),
       impacts: new Map(),
       instances: new Map(),

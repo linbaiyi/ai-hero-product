@@ -126,6 +126,8 @@ export type ProjectSaveRequest = {
   board_result: BoardRenderResult | null;
   playable_spec?: HeroPlayableSpec | null;
   runtime_vfx_asset_spec?: RuntimeVfxAssetSpec | null;
+  locked_skills?: Record<string, boolean>;
+  skill_artifacts?: Record<string, SkillArtifact>;
   llm_provider?: string | null;
   image_provider?: string | null;
 };
@@ -150,6 +152,37 @@ export type ProjectSummary = {
 export type ProjectListResponse = {
   projects: ProjectSummary[];
   total: number;
+};
+
+export type ProjectImportResult = {
+  project_id: string;
+  imported: boolean;
+  project: ProjectRecord;
+};
+
+export type SkillArtifact = {
+  locked: boolean;
+  skill_design?: Record<string, unknown> | null;
+  vfx_design?: Record<string, unknown> | null;
+  image_prompt?: Record<string, unknown> | null;
+  image_result?: Record<string, unknown> | null;
+  playable_skill_spec?: Record<string, unknown> | null;
+  runtime_vfx_skill_spec?: Record<string, unknown> | null;
+};
+
+export type EditableSkillSlot = "Q" | "W" | "E" | "R";
+
+export type ProjectSkillEditRequest = {
+  edit_instruction: string;
+  replacement_skill_design?: Record<string, unknown> | null;
+  replacement_vfx_design?: Record<string, unknown> | null;
+  replacement_playable_skill_spec?: Record<string, unknown> | null;
+};
+
+export type ProjectSkillEditResult = {
+  project: ProjectRecord;
+  changed_slot: EditableSkillSlot;
+  preserved_slots: string[];
 };
 
 export type ProjectSaveStatusType = "idle" | "saving" | "saved" | "failed";

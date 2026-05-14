@@ -10,8 +10,10 @@ import { generatePlayableSpec } from "../src/api/playableApi";
 import {
   deleteProject,
   getProject,
+  importProjectArchive,
   listProjects,
   saveProject,
+  updateProjectSkill,
 } from "../src/api/projectApi";
 import { generateRuntimeVfxAssets } from "../src/api/runtimeVfxApi";
 import { generateVfxBreakdownBatch } from "../src/api/vfxApi";
@@ -36,7 +38,9 @@ vi.mock("../src/api/projectApi", () => ({
   saveProject: vi.fn(),
   listProjects: vi.fn(),
   getProject: vi.fn(),
+  importProjectArchive: vi.fn(),
   deleteProject: vi.fn(),
+  updateProjectSkill: vi.fn(),
 }));
 vi.mock("../src/api/playableApi", () => ({ generatePlayableSpec: vi.fn() }));
 vi.mock("../src/api/runtimeVfxApi", () => ({
@@ -54,7 +58,9 @@ const mockedSaveProjectExportZip = vi.mocked(saveProjectExportZip);
 const mockedSaveProject = vi.mocked(saveProject);
 const mockedListProjects = vi.mocked(listProjects);
 const mockedGetProject = vi.mocked(getProject);
+const mockedImportProjectArchive = vi.mocked(importProjectArchive);
 const mockedDeleteProject = vi.mocked(deleteProject);
+const mockedUpdateProjectSkill = vi.mocked(updateProjectSkill);
 const mockedGeneratePlayableSpec = vi.mocked(generatePlayableSpec);
 const mockedGenerateRuntimeVfxAssets = vi.mocked(generateRuntimeVfxAssets);
 
@@ -151,7 +157,9 @@ describe("runtime vfx project integration", () => {
     }));
     mockedListProjects.mockResolvedValue({ projects: [], total: 0 });
     mockedGetProject.mockReset();
+    mockedImportProjectArchive.mockReset();
     mockedDeleteProject.mockReset();
+    mockedUpdateProjectSkill.mockReset();
     mockedGeneratePlayableSpec.mockReset();
     mockedGenerateRuntimeVfxAssets.mockReset();
   });

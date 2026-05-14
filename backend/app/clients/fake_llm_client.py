@@ -17,6 +17,15 @@ class FakeLLMClient:
         if schema_name == "playable_spec":
             return _generate_playable_spec(prompt)
 
+        if schema_name == "project_skill_edit":
+            return _generate_project_skill_edit(prompt)
+
+        if schema_name == "project_playable_skill_edit":
+            return _generate_project_playable_skill_edit(prompt)
+
+        if schema_name == "project_runtime_vfx_edit_plan":
+            return _generate_project_runtime_vfx_edit_plan(prompt)
+
         return _generate_hero_design(prompt)
 
 
@@ -180,6 +189,167 @@ def _generate_playable_spec(prompt: str) -> dict:
             "camera": "third_person_follow",
             "map_profile": "default_training_arena",
         },
+    }
+
+
+def _generate_project_skill_edit(prompt: str) -> dict:
+    slot = _extract_value(prompt, ["Target slot"], "Q")
+    instruction = _extract_value(prompt, ["Edit instruction"], "Refine this skill")
+    return {
+        "slot": slot,
+        "name": f"Edited {slot} Skill",
+        "type": "主动",
+        "description": f"Single-slot edited skill. {instruction}",
+        "mechanics": f"Only this skill is changed: {instruction}",
+        "cooldown": "10秒",
+        "cost": "50法力",
+        "damage_type": "魔法伤害",
+        "balance_notes": "Other skills should stay locked and unchanged.",
+    }
+
+
+def _generate_project_playable_skill_edit(prompt: str) -> dict:
+    slot = _extract_value(prompt, ["Target slot"], "Q").upper()
+    lower_prompt = prompt.lower()
+    status_effects = []
+    if any(keyword in lower_prompt for keyword in ["burn", "burning", "ignite", "灼烧", "燃烧"]):
+        status_effects.append(
+            {
+                "type": "burn",
+                "duration": 3,
+                "tick_interval": 1,
+                "damage": 12,
+            }
+        )
+
+    if slot == "W":
+        return {
+            "slot": "W",
+            "name": "Edited W Field",
+            "type": "aoe_dot",
+            "cooldown": 10,
+            "resource_cost": 35,
+            "damage": 30,
+            "range": 10,
+            "radius": 4,
+            "duration": 5,
+            "tick_interval": 1,
+            "status_effects": status_effects,
+            "description": "Single-slot edited W zone.",
+            "vfx": _fake_fire_vfx("circle_zone", "#ff8a2a"),
+        }
+    if slot == "E":
+        if any(keyword in lower_prompt for keyword in ["fire sea", "burning ground", "火海"]):
+            return {
+                "slot": "E",
+                "name": "Edited E Fire Spirit",
+                "type": "summon",
+                "cooldown": 8,
+                "resource_cost": 25,
+                "damage": 24,
+                "range": 8,
+                "radius": 3.5,
+                "duration": 8,
+                "tick_interval": 1,
+                "status_effects": status_effects,
+                "description": "Summon the fire spirit unchanged, and create a burning fire sea at its spawn point that damages enemies over time.",
+                "vfx": _fake_fire_vfx("circle_zone", "#ff5a1f"),
+            }
+        return {
+            "slot": "E",
+            "name": "Edited E Dash",
+            "type": "dash",
+            "cooldown": 8,
+            "resource_cost": 25,
+            "damage": 70,
+            "distance": 7,
+            "radius": 1.5,
+            "duration": 0.35,
+            "status_effects": status_effects,
+            "description": "Single-slot edited E dash.",
+            "vfx": _fake_fire_vfx("trail", "#f97316"),
+        }
+    if slot == "R":
+        return {
+            "slot": "R",
+            "name": "Edited R Impact",
+            "type": "aoe",
+            "cooldown": 45,
+            "resource_cost": 70,
+            "damage": 320,
+            "range": 16,
+            "radius": 5.5,
+            "duration": 1.2,
+            "status_effects": status_effects,
+            "description": "Single-slot edited R impact.",
+            "vfx": _fake_fire_vfx("meteor", "#ff3d00"),
+        }
+    return {
+        "slot": "Q",
+        "name": "Edited Q Projectile",
+        "type": "projectile",
+        "cooldown": 4,
+        "resource_cost": 20,
+        "damage": 120,
+        "range": 14,
+        "radius": 1.2,
+        "speed": 16,
+        "status_effects": status_effects,
+        "description": "Single-slot edited Q projectile.",
+        "vfx": _fake_fire_vfx("fireball", "#ff5a1f"),
+    }
+
+
+def _generate_project_runtime_vfx_edit_plan(prompt: str) -> dict:
+    lower_prompt = prompt.lower()
+    if any(keyword in lower_prompt for keyword in ["fire sea", "burning ground", "鐏捣"]):
+        return {
+            "keep_usages": ["summon_body"],
+            "regenerate_usages": ["aura", "impact"],
+            "add_usages": ["ground_decal"],
+            "remove_usages": [],
+            "reason": "The summon body is preserved, but the new fire sea needs a ground decal and refreshed surrounding effects.",
+        }
+    if any(keyword in lower_prompt for keyword in ["visual unchanged", "vfx unchanged", "texture unchanged", "瑙嗚鏁堟灉涓嶅彉"]):
+        return {
+            "keep_usages": ["projectile"],
+            "regenerate_usages": [],
+            "add_usages": [],
+            "remove_usages": [],
+            "reason": "The edit explicitly keeps visuals unchanged.",
+        }
+    if any(keyword in lower_prompt for keyword in ["burn", "burning", "ignite", "鐏肩儳", "鐕冪儳"]):
+        return {
+            "keep_usages": ["projectile"],
+            "regenerate_usages": [],
+            "add_usages": ["trail", "impact"],
+            "remove_usages": [],
+            "reason": "The projectile remains, while burn feedback benefits from trail and impact textures.",
+        }
+    if "aoe" in lower_prompt or "ground explosion" in lower_prompt:
+        return {
+            "keep_usages": [],
+            "regenerate_usages": [],
+            "add_usages": ["ground_decal", "impact"],
+            "remove_usages": ["projectile", "trail"],
+            "reason": "The skill became an area effect and no longer needs projectile textures.",
+        }
+    return {
+        "keep_usages": ["projectile"],
+        "regenerate_usages": [],
+        "add_usages": [],
+        "remove_usages": [],
+        "reason": "No visual texture changes are required.",
+    }
+
+
+def _fake_fire_vfx(shape: str, color: str) -> dict:
+    return {
+        "theme": "fire",
+        "color": color,
+        "shape": shape,
+        "impact": "edited_impact",
+        "trail": "edited_trail",
     }
 
 

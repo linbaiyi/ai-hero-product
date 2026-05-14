@@ -1,7 +1,10 @@
 import type {
+  ProjectImportResult,
   ProjectListResponse,
   ProjectRecord,
   ProjectSaveRequest,
+  ProjectSkillEditRequest,
+  ProjectSkillEditResult,
 } from "../types/project";
 
 export const BACKEND_BASE_URL =
@@ -29,7 +32,22 @@ async function requestJson<T>(
     }
 
     if (!response.ok) {
-      throw new ProjectApiError(fallbackMessage);
+      let serverMessage: string | undefined;
+      try {
+        const errorBody = await response.json();
+        const detail = errorBody?.detail;
+        serverMessage =
+          typeof detail?.message === "string"
+            ? detail.message
+            : typeof detail === "string"
+              ? detail
+              : typeof errorBody?.message === "string"
+                ? errorBody.message
+                : undefined;
+      } catch {
+        serverMessage = undefined;
+      }
+      throw new ProjectApiError(serverMessage ?? fallbackMessage);
     }
 
     return (await response.json()) as T;
@@ -87,5 +105,37 @@ export function deleteProject(
       method: "DELETE",
     },
     DELETE_ERROR,
+  );
+}
+
+export function importProjectArchive(file: File): Promise<ProjectImportResult> {
+  return requestJson<ProjectImportResult>(
+    `${BACKEND_BASE_URL}/api/projects/import`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/zip",
+      },
+      body: file,
+    },
+    "Project import failed. Please check the ZIP package and try again.",
+  );
+}
+
+export function updateProjectSkill(
+  projectId: string,
+  slot: string,
+  request: ProjectSkillEditRequest,
+): Promise<ProjectSkillEditResult> {
+  return requestJson<ProjectSkillEditResult>(
+    `${BACKEND_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/skills/${encodeURIComponent(slot)}/edit`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+    },
+    "Skill edit failed. Please retry after checking the current project.",
   );
 }

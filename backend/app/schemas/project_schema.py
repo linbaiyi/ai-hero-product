@@ -10,6 +10,16 @@ from app.schemas.runtime_vfx_schema import RuntimeVfxAssetSpec
 from app.schemas.vfx_schema import VfxDesign
 
 
+class SkillArtifact(BaseModel):
+    locked: bool = True
+    skill_design: dict | None = None
+    vfx_design: dict | None = None
+    image_prompt: dict | None = None
+    image_result: dict | None = None
+    playable_skill_spec: dict | None = None
+    runtime_vfx_skill_spec: dict | None = None
+
+
 class ProjectSaveRequest(BaseModel):
     project_id: str
     request: HeroGenerateRequest
@@ -20,6 +30,8 @@ class ProjectSaveRequest(BaseModel):
     board_result: BoardRenderResult | None = None
     playable_spec: HeroPlayableSpec | None = None
     runtime_vfx_asset_spec: RuntimeVfxAssetSpec | None = None
+    locked_skills: dict[str, bool] = Field(default_factory=dict)
+    skill_artifacts: dict[str, SkillArtifact] = Field(default_factory=dict)
     llm_provider: str | None = None
     image_provider: str | None = None
 

@@ -62,6 +62,24 @@ def test_project_save_request_accepts_valid_runtime_vfx_asset_spec():
     assert req.runtime_vfx_asset_spec.hero_id == "test_playable_hero"
 
 
+def test_project_save_request_accepts_skill_locks_and_artifacts():
+    req = ProjectSaveRequest(
+        **make_project_save_request(
+            locked_skills={"Q": False, "W": True, "E": True, "R": True},
+            skill_artifacts={
+                "Q": {
+                    "locked": False,
+                    "skill_design": {"slot": "Q", "name": "Edited Q"},
+                    "playable_skill_spec": {"slot": "Q", "name": "Edited Q"},
+                }
+            },
+        )
+    )
+
+    assert req.locked_skills["Q"] is False
+    assert req.skill_artifacts["Q"].skill_design["name"] == "Edited Q"
+
+
 def test_project_save_request_rejects_invalid_runtime_vfx_asset_spec():
     payload = make_project_save_request(
         runtime_vfx_asset_spec=make_runtime_vfx_asset_spec()

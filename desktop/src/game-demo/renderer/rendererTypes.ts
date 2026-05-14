@@ -19,6 +19,7 @@ export type TextureVfxHandles = {
   buffs: Map<string, THREE.Object3D>;
   summon_bodies: Map<string, THREE.Object3D>;
   summon_auras: Map<string, THREE.Object3D>;
+  summon_ground_decals: Map<string, THREE.Object3D>;
   trails: Map<string, THREE.Object3D>;
   impacts: Map<string, THREE.Object3D>;
   instances: Map<string, RuntimeVfxInstance>;

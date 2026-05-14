@@ -13,8 +13,10 @@ import {
 import {
   deleteProject,
   getProject,
+  importProjectArchive,
   listProjects,
   saveProject,
+  updateProjectSkill,
 } from "../api/projectApi";
 import { generateVfxBreakdownBatch } from "../api/vfxApi";
 import ActivityBar, { type ActivityView } from "../components/ActivityBar";
@@ -48,11 +50,14 @@ import type {
   ProjectRecord,
   ProjectSaveStatusType,
   ProjectSummary,
+  SkillArtifact,
   VfxDesign,
 } from "../types/project";
 
 type PlayableSpecStatus = "idle" | "generating" | "ready" | "error";
 type RuntimeVfxStatus = "idle" | "generating" | "ready" | "error";
+type SkillEditStatus = "idle" | "saving" | "saved" | "error";
+type EditableSkillSlot = "Q" | "W" | "E" | "R";
 
 const IMAGE_REQUEST_DELAY_MS = 1200;
 
@@ -113,6 +118,15 @@ function HomePage() {
   >([]);
   const [runtimeVfxRestoreAttemptedFor, setRuntimeVfxRestoreAttemptedFor] =
     useState<string | null>(null);
+  const [lockedSkills, setLockedSkills] = useState<Record<string, boolean>>({});
+  const [skillArtifacts, setSkillArtifacts] = useState<
+    Record<string, SkillArtifact>
+  >({});
+  const [skillEditSlot, setSkillEditSlot] = useState<EditableSkillSlot>("Q");
+  const [skillEditInstruction, setSkillEditInstruction] = useState("");
+  const [skillEditStatus, setSkillEditStatus] =
+    useState<SkillEditStatus>("idle");
+  const [skillEditError, setSkillEditError] = useState<string | null>(null);
   const [savedProject, setSavedProject] = useState<ProjectRecord | null>(null);
   const [historyProjects, setHistoryProjects] = useState<ProjectSummary[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -194,6 +208,8 @@ function HomePage() {
           board_result: board,
           playable_spec: playableSpec,
           runtime_vfx_asset_spec: runtimeVfxAssetSpec,
+          locked_skills: lockedSkills,
+          skill_artifacts: skillArtifacts,
           llm_provider: null,
           image_provider: null,
         });
@@ -208,7 +224,13 @@ function HomePage() {
         setProjectSaveStatus("failed");
       }
     },
-    [loadHistoryProjects, playableSpec, runtimeVfxAssetSpec],
+    [
+      loadHistoryProjects,
+      lockedSkills,
+      playableSpec,
+      runtimeVfxAssetSpec,
+      skillArtifacts,
+    ],
   );
 
   const renderBoardForResults = useCallback(
@@ -405,6 +427,11 @@ function HomePage() {
       setRuntimeVfxWarnings([]);
       setRuntimeVfxGeneratedAssets([]);
       setRuntimeVfxRestoreAttemptedFor(null);
+      setLockedSkills({});
+      setSkillArtifacts({});
+      setSkillEditStatus("idle");
+      setSkillEditError(null);
+      setSkillEditInstruction("");
       setSavedProject(null);
       setActiveProjectId(null);
       setIsGeneratingHero(true);
@@ -542,6 +569,11 @@ function HomePage() {
       setRuntimeVfxWarnings([]);
       setRuntimeVfxGeneratedAssets([]);
       setRuntimeVfxRestoreAttemptedFor(project.project_id);
+      setLockedSkills(project.locked_skills ?? {});
+      setSkillArtifacts(project.skill_artifacts ?? {});
+      setSkillEditStatus("idle");
+      setSkillEditError(null);
+      setSkillEditInstruction("");
       setIsGeneratingHero(false);
       setIsGeneratingVfx(false);
       setIsGeneratingImagePrompts(false);
@@ -599,12 +631,32 @@ function HomePage() {
         setExportStatus("idle");
         setExportError(null);
         setExportResult(null);
+        setLockedSkills({});
+        setSkillArtifacts({});
+        setSkillEditStatus("idle");
+        setSkillEditError(null);
       }
       await loadHistoryProjects();
     } catch (error) {
       setHistoryError(
         error instanceof Error ? error.message : "项目删除失败，请稍后重试。",
       );
+    }
+  };
+
+  const handleImportProjectArchive = async (file: File) => {
+    setHistoryError(null);
+    setIsLoadingHistory(true);
+    try {
+      const result = await importProjectArchive(file);
+      await loadHistoryProjects();
+      await handleOpenProject(result.project_id);
+    } catch (error) {
+      setHistoryError(
+        error instanceof Error ? error.message : "项目导入失败，请检查 ZIP 资料包后重试。",
+      );
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -668,6 +720,10 @@ function HomePage() {
       setRuntimeVfxError(null);
       setRuntimeVfxWarnings([]);
       setRuntimeVfxGeneratedAssets([]);
+      setLockedSkills({});
+      setSkillArtifacts({});
+      setSkillEditStatus("idle");
+      setSkillEditError(null);
       if (currentProjectId && lastRequest && heroDesign) {
         try {
           const record = await saveProject({
@@ -680,11 +736,15 @@ function HomePage() {
             board_result: boardResult,
             playable_spec: spec,
             runtime_vfx_asset_spec: null,
+            locked_skills: {},
+            skill_artifacts: {},
             llm_provider: null,
             image_provider: null,
           });
           setSavedProject(record);
           setActiveProjectId(record.project_id);
+          setLockedSkills(record.locked_skills ?? {});
+          setSkillArtifacts(record.skill_artifacts ?? {});
           setProjectSaveStatus("saved");
           await loadHistoryProjects();
         } catch {
@@ -740,11 +800,15 @@ function HomePage() {
             board_result: boardResult,
             playable_spec: playableSpec,
             runtime_vfx_asset_spec: result.runtime_vfx_asset_spec,
+            locked_skills: lockedSkills,
+            skill_artifacts: skillArtifacts,
             llm_provider: null,
             image_provider: null,
           });
           setSavedProject(record);
           setActiveProjectId(record.project_id);
+          setLockedSkills(record.locked_skills ?? {});
+          setSkillArtifacts(record.skill_artifacts ?? {});
           setProjectSaveStatus("saved");
           await loadHistoryProjects();
         } catch {
@@ -759,6 +823,58 @@ function HomePage() {
         error instanceof Error ? error.message : "运行时贴图资产生成失败，请稍后重试。",
       );
       setRuntimeVfxStatus("error");
+    }
+  };
+
+  const handleEditSingleSkill = async () => {
+    if (!activeProjectId) {
+      setSkillEditStatus("error");
+      setSkillEditError("请先保存或打开一个项目，再进行单技能修改。");
+      return;
+    }
+    if (!skillEditInstruction.trim()) {
+      setSkillEditStatus("error");
+      setSkillEditError("请输入希望修改的技能方向。");
+      return;
+    }
+
+    setSkillEditStatus("saving");
+    setSkillEditError(null);
+
+    try {
+      const result = await updateProjectSkill(activeProjectId, skillEditSlot, {
+        edit_instruction: skillEditInstruction.trim(),
+      });
+      const project = result.project;
+      setSubmittedRequest(project.request);
+      setLastRequest(project.request);
+      setCurrentProjectId(project.project_id);
+      setHeroDesign(project.hero_design);
+      setVfxDesigns(project.vfx_designs);
+      setImagePrompts(project.image_prompts);
+      setImageResults(project.image_results);
+      setBoardResult(project.board_result);
+      setSavedProject(project);
+      setActiveProjectId(project.project_id);
+      setLockedSkills(project.locked_skills ?? {});
+      setSkillArtifacts(project.skill_artifacts ?? {});
+      setPlayableSpec(
+        project.playable_spec ? normalizePlayableSpec(project.playable_spec) : null,
+      );
+      setRuntimeVfxAssetSpec(
+        project.runtime_vfx_asset_spec
+          ? normalizeRuntimeVfxAssetSpec(project.runtime_vfx_asset_spec)
+          : null,
+      );
+      setProjectSaveStatus("saved");
+      setSkillEditStatus("saved");
+      setSkillEditInstruction("");
+      await loadHistoryProjects();
+    } catch (error) {
+      setSkillEditStatus("error");
+      setSkillEditError(
+        error instanceof Error ? error.message : "单技能修改失败，请稍后重试。",
+      );
     }
   };
 
@@ -856,6 +972,63 @@ function HomePage() {
       </div>
       {playableSpecStatus === "ready" ? (
         <p className="mt-2 text-sm text-[#86efac]">试玩配置已生成</p>
+      ) : null}
+      {heroDesign ? (
+        <div className="mt-4 rounded-lg border border-slate-400/15 bg-slate-900/45 p-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8b93a3]">
+              单技能修改
+              <select
+                className="mt-2 block rounded-md border border-slate-500/30 bg-slate-950 px-3 py-2 text-sm text-[#e6e8eb]"
+                onChange={(event) =>
+                  setSkillEditSlot(event.target.value as EditableSkillSlot)
+                }
+                value={skillEditSlot}
+              >
+                <option value="Q">Q</option>
+                <option value="W">W</option>
+                <option value="E">E</option>
+                <option value="R">R</option>
+              </select>
+            </label>
+            <label className="min-w-[260px] flex-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#8b93a3]">
+              修改方向
+              <textarea
+                className="mt-2 min-h-[72px] w-full resize-y rounded-md border border-slate-500/30 bg-slate-950 px-3 py-2 text-sm normal-case tracking-normal text-[#e6e8eb]"
+                onChange={(event) => setSkillEditInstruction(event.target.value)}
+                placeholder="例如：只把 Q 改成施加灼烧，其他技能、贴图和试玩配置保持不变。"
+                value={skillEditInstruction}
+              />
+            </label>
+            <button
+              className="ue-button"
+              disabled={skillEditStatus === "saving" || !activeProjectId}
+              onClick={() => void handleEditSingleSkill()}
+              type="button"
+            >
+              {skillEditStatus === "saving" ? "正在修改..." : "只修改该技能"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-[#8b93a3]">
+            当前策略：只更新选中的技能槽位，并把其他 Q/W/E/R 技能标记为锁定，降低后续生成漂移。
+          </p>
+          {Object.keys(lockedSkills).length > 0 ? (
+            <p className="mt-2 text-xs text-[#9fb0c8]">
+              锁定状态:{" "}
+              {(["Q", "W", "E", "R"] as const)
+                .map((slot) => `${slot}:${lockedSkills[slot] ? "锁定" : "可改"}`)
+                .join(" / ")}
+            </p>
+          ) : null}
+          {skillEditStatus === "saved" ? (
+            <p className="mt-2 text-sm text-emerald-200">
+              单技能修改已保存，其他技能已保留。
+            </p>
+          ) : null}
+          {skillEditError ? (
+            <p className="mt-2 text-sm text-rose-200">{skillEditError}</p>
+          ) : null}
+        </div>
       ) : null}
       {playableSpecError ? (
         <div className="mt-3">
@@ -1090,6 +1263,7 @@ function HomePage() {
                 errorMessage={historyError}
                 isLoading={isLoadingHistory}
                 onDelete={(projectId) => void handleDeleteHistoryProject(projectId)}
+                onImport={(file) => void handleImportProjectArchive(file)}
                 onOpen={(projectId) => void handleOpenProject(projectId)}
                 onRefresh={() => void loadHistoryProjects()}
                 projects={historyProjects}
