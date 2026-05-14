@@ -13,6 +13,18 @@ RuntimeVfxPromptUsage = Literal[
     "aura",
     "trail",
     "summon_body",
+    "cast_flash",
+    "cast_circle",
+    "zone_tick",
+    "summon_spawn",
+    "summon_idle",
+    "summon_expire",
+    "status_loop",
+    "burn_loop",
+    "poison_cloud",
+    "mark_sigil",
+    "mark_sigial",
+    "stun_stars",
 ]
 
 
@@ -43,6 +55,9 @@ class RuntimeVfxPromptItem(BaseModel):
     skill_type: str
     usage: RuntimeVfxPromptUsage
     render_mode: str
+    trigger: str | None = None
+    action: str | None = None
+    effect_index: int | None = None
     prompt: str
     negative_prompt: str | None = None
     recommended_size: str = "512x512"

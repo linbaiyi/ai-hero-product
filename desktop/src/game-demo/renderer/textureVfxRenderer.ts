@@ -25,7 +25,6 @@ import {
   updateProceduralVfxInstance,
 } from "./proceduralVfxUpdater";
 import type { RenderedGameScene, TextureVfxHandles } from "./rendererTypes";
-import { getSkillVfxRecipe } from "./skillVfxRecipes";
 import type { RuntimeTextureCache } from "./textureLoader";
 import {
   createMaterialForRuntimeAsset,
@@ -176,12 +175,29 @@ export function findAssetForSkillUsage(
   runtimeVfxAssetSpec: RuntimeVfxAssetSpec,
   slot: RuntimeVfxSlot,
   usage: RuntimeVfxUsage,
+  criteria: {
+    trigger?: string;
+    action?: string;
+    effect_index?: number;
+  } = {},
 ): RuntimeVfxAssetEntry | undefined {
   const skill = runtimeVfxAssetSpec.skills[slot];
   if (!skill) {
     return undefined;
   }
-  return Object.values(skill.assets).find((asset) => asset.usage === usage);
+  const candidates = Object.values(skill.assets).filter((asset) => asset.usage === usage);
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  return (
+    candidates.find(
+      (asset) =>
+        (criteria.trigger === undefined || asset.trigger === criteria.trigger) &&
+        (criteria.action === undefined || asset.action === criteria.action) &&
+        (criteria.effect_index === undefined || asset.effect_index === criteria.effect_index),
+    ) ?? candidates[0]
+  );
 }
 
 export function getTextureVfxWarnings(
@@ -214,14 +230,13 @@ function updateProjectileComposition(
     handles.projectile_slots.set(projectile.id, projectile.skill_slot);
     handles.projectile_radii.set(projectile.id, projectile.radius);
     handles.projectile_last_positions.set(projectile.id, { ...projectile.position });
-    const recipe = getSkillVfxRecipe(projectile.skill_slot);
-
-    if (recipe.items.some((item) => item.usage === "projectile")) {
-      const projectileAsset = findAssetForSkillUsage(
-        spec,
-        projectile.skill_slot,
-        "projectile",
-      );
+    const projectileAsset = findAssetForSkillUsage(
+      spec,
+      projectile.skill_slot,
+      "projectile",
+      { trigger: "on_cast", action: "spawn_projectile" },
+    );
+    if (projectileAsset) {
       const projectileTexture = projectileAsset
         ? textureCache.get(projectileAsset.path) ?? undefined
         : undefined;
@@ -263,7 +278,7 @@ function updateProjectileComposition(
       );
     }
 
-    if (recipe.items.some((item) => item.usage === "trail")) {
+    if (findAssetForSkillUsage(spec, projectile.skill_slot, "trail")) {
       maybeSpawnTrail(sceneHandles, state, projectile, spec, textureCache, handles);
     }
   }
@@ -282,12 +297,11 @@ function updateZoneComposition(
   removeMissingProceduralPersistentInstances(sceneHandles, handles, "procedural:zone_ring:", activeIds);
 
   for (const zone of state.active_zones) {
-    const recipe = getSkillVfxRecipe(zone.skill_slot);
-    if (!recipe.items.some((item) => item.usage === "ground_decal")) {
+    const asset = findAssetForSkillUsage(spec, zone.skill_slot, "ground_decal");
+    if (!asset) {
       continue;
     }
 
-    const asset = findAssetForSkillUsage(spec, zone.skill_slot, "ground_decal");
     const texture = asset ? textureCache.get(asset.path) ?? undefined : undefined;
     const instance = upsertPersistentInstance({
       sceneHandles,
@@ -352,13 +366,12 @@ function updateAuraComposition(
   const desiredAuraIds = new Set<string>();
 
   for (const buff of state.buffs) {
-    const recipe = getSkillVfxRecipe(buff.skill_slot);
-    if (!recipe.items.some((item) => item.usage === "aura")) {
+    const asset = findAssetForSkillUsage(spec, buff.skill_slot, "aura");
+    if (!asset) {
       continue;
     }
 
     desiredAuraIds.add(buff.id);
-    const asset = findAssetForSkillUsage(spec, buff.skill_slot, "aura");
     const texture = asset ? textureCache.get(asset.path) ?? undefined : undefined;
     upsertPersistentInstance({
       sceneHandles,
@@ -611,17 +624,23 @@ function updateImpactComposition(
       const enemy = state.enemies.find((candidate) => candidate.id === event.enemy_id);
       if (slot && enemy) {
         const radius = handles.projectile_radii.get(event.projectile_id) ?? enemy.radius;
-        spawnImpact(sceneHandles, textureCache, handles, spec, slot, {
+        const handled = spawnImpact(sceneHandles, textureCache, handles, spec, slot, {
           x: enemy.position.x,
           y: 0.65,
           z: enemy.position.z,
         }, radius, eventKey);
+        if (!handled) {
+          continue;
+        }
       }
     } else if (event.type === "zone_tick") {
       const zone = state.active_zones.find((candidate) => candidate.id === event.zone_id);
       const slot = zone?.skill_slot;
       if (slot === "R" && zone) {
-        spawnImpact(sceneHandles, textureCache, handles, spec, slot, zonePosition(zone), zone.radius, eventKey);
+        const handled = spawnImpact(sceneHandles, textureCache, handles, spec, slot, zonePosition(zone), zone.radius, eventKey);
+        if (!handled) {
+          continue;
+        }
       }
     } else if (event.type === "skill_cast" && event.skill_slot === "R") {
       const target = event.target ?? getSkillCastFallbackTarget(state);
@@ -630,7 +649,7 @@ function updateImpactComposition(
         y: 0.075,
         z: target.z,
       };
-      spawnTransientGroundDecal(
+      const decalHandled = spawnTransientGroundDecal(
         sceneHandles,
         textureCache,
         handles,
@@ -640,7 +659,7 @@ function updateImpactComposition(
         event.radius,
         `${eventKey}:decal`,
       );
-      spawnImpact(
+      const impactHandled = spawnImpact(
         sceneHandles,
         textureCache,
         handles,
@@ -650,10 +669,13 @@ function updateImpactComposition(
         event.radius,
         `${eventKey}:impact`,
       );
+      if (!decalHandled || !impactHandled) {
+        continue;
+      }
     } else if (event.type === "summon_spawned") {
       const summon = state.summons.find((candidate) => candidate.id === event.summon_id);
       if (summon) {
-        spawnImpact(
+        const handled = spawnImpact(
           sceneHandles,
           textureCache,
           handles,
@@ -663,6 +685,9 @@ function updateImpactComposition(
           summon.radius,
           `${eventKey}:spawn`,
         );
+        if (!handled) {
+          continue;
+        }
       }
     }
 
@@ -740,21 +765,16 @@ function spawnImpact(
   position: { x: number; y: number; z: number },
   radius: number | undefined,
   eventKey: string,
-): void {
-  const recipe = getSkillVfxRecipe(slot);
-  if (!recipe.items.some((item) => item.usage === "impact")) {
-    return;
-  }
-
+): boolean {
   const asset = findAssetForSkillUsage(spec, slot, "impact");
   if (!asset) {
-    return;
+    return true;
   }
 
   const texture = textureCache.get(asset.path);
   if (!texture) {
     void textureCache.load(asset.path);
-    return;
+    return false;
   }
 
   const id = `impact:${eventKey}`;
@@ -779,6 +799,7 @@ function spawnImpact(
     impactRadius,
     eventKey,
   );
+  return true;
 }
 
 function spawnTransientGroundDecal(
@@ -790,21 +811,16 @@ function spawnTransientGroundDecal(
   position: { x: number; y: number; z: number },
   radius: number | undefined,
   eventKey: string,
-): void {
-  const recipe = getSkillVfxRecipe(slot);
-  if (!recipe.items.some((item) => item.usage === "ground_decal")) {
-    return;
-  }
-
+): boolean {
   const asset = findAssetForSkillUsage(spec, slot, "ground_decal");
   if (!asset) {
-    return;
+    return true;
   }
 
   const texture = textureCache.get(asset.path);
   if (!texture) {
     void textureCache.load(asset.path);
-    return;
+    return false;
   }
 
   const id = `ground_decal:${eventKey}`;
@@ -833,6 +849,7 @@ function spawnTransientGroundDecal(
       duration: asset.duration || 0.8,
     }),
   );
+  return true;
 }
 
 function getGroundDecalVisualScale(

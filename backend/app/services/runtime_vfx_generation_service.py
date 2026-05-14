@@ -22,21 +22,33 @@ from app.storage.file_storage import (
 
 
 USAGE_PRIORITY = {
+    "cast_flash": 0,
     "projectile": 0,
     "ground_decal": 1,
+    "cast_circle": 1,
+    "zone_tick": 1,
     "impact": 2,
     "aura": 3,
+    "summon_body": 3,
+    "summon_spawn": 3,
+    "summon_idle": 3,
+    "summon_expire": 3,
+    "burn_loop": 3,
+    "poison_cloud": 3,
+    "mark_sigil": 3,
+    "mark_sigial": 3,
+    "stun_stars": 3,
+    "status_loop": 3,
     "trail": 4,
-    "summon_body": 0,
 }
 
 REQUIRED_USAGE_BY_SKILL_TYPE = {
-    "projectile": ["projectile"],
-    "aoe": ["ground_decal", "impact"],
+    "projectile": ["projectile", "cast_flash"],
+    "aoe": ["ground_decal", "impact", "cast_circle"],
     "aoe_dot": ["ground_decal"],
     "dash": ["trail", "impact"],
     "buff": ["aura"],
-    "summon": ["summon_body"],
+    "summon": ["summon_body", "summon_spawn"],
 }
 
 DEFAULT_RENDER_MODE_BY_USAGE = {
@@ -46,6 +58,18 @@ DEFAULT_RENDER_MODE_BY_USAGE = {
     "aura": "aura_ring",
     "trail": "sprite_trail",
     "summon_body": "sprite",
+    "cast_flash": "sprite",
+    "cast_circle": "ground_plane",
+    "zone_tick": "ground_plane",
+    "summon_spawn": "sprite",
+    "summon_idle": "aura_ring",
+    "summon_expire": "sprite",
+    "status_loop": "sprite",
+    "burn_loop": "sprite",
+    "poison_cloud": "sprite",
+    "mark_sigil": "ground_plane",
+    "mark_sigial": "ground_plane",
+    "stun_stars": "sprite",
 }
 
 DEFAULT_SCALE_BY_USAGE = {
@@ -55,6 +79,18 @@ DEFAULT_SCALE_BY_USAGE = {
     "aura": 2.0,
     "trail": 0.8,
     "summon_body": 1.6,
+    "cast_flash": 1.5,
+    "cast_circle": 2.5,
+    "zone_tick": 3.5,
+    "summon_spawn": 2.0,
+    "summon_idle": 1.8,
+    "summon_expire": 2.5,
+    "status_loop": 1.0,
+    "burn_loop": 1.0,
+    "poison_cloud": 1.2,
+    "mark_sigil": 1.4,
+    "mark_sigial": 1.4,
+    "stun_stars": 1.0,
 }
 
 DEFAULT_DURATION_BY_USAGE = {
@@ -64,6 +100,18 @@ DEFAULT_DURATION_BY_USAGE = {
     "aura": 3.0,
     "trail": 0.25,
     "summon_body": 8.0,
+    "cast_flash": 0.25,
+    "cast_circle": 0.6,
+    "zone_tick": 0.8,
+    "summon_spawn": 0.35,
+    "summon_idle": 8.0,
+    "summon_expire": 0.45,
+    "status_loop": 1.0,
+    "burn_loop": 1.0,
+    "poison_cloud": 1.0,
+    "mark_sigil": 1.5,
+    "mark_sigial": 1.5,
+    "stun_stars": 1.0,
 }
 
 MIN_ATLAS_SIZE = 1024
@@ -169,7 +217,8 @@ class RuntimeVfxGenerationService:
 
         for index, selected_prompt in enumerate(selected):
             item = selected_prompt.item
-            file_name = f"{item.slot}_{sanitize_file_name(item.usage)}.png"
+            safe_asset_key = sanitize_file_name(selected_prompt.asset_key)
+            file_name = f"{item.slot}_{safe_asset_key}.png"
             asset_path = f"{asset_base_path}/{file_name}"
             cell_box = _atlas_cell_box(index, atlas_width, atlas_height, grid)
 
@@ -180,6 +229,9 @@ class RuntimeVfxGenerationService:
                     skill_type=item.skill_type,
                     usage=item.usage,
                     render_mode=item.render_mode,
+                    trigger=item.trigger,
+                    action=item.action,
+                    effect_index=item.effect_index,
                     path=asset_path,
                     prompt=item.prompt,
                     width=cell_box.width,
@@ -195,6 +247,9 @@ class RuntimeVfxGenerationService:
                 "duration": DEFAULT_DURATION_BY_USAGE[item.usage],
                 "loop": _should_loop(item.skill_type, item.usage),
                 "color_tint": _color_for_slot(req, item.slot),
+                "trigger": item.trigger,
+                "action": item.action,
+                "effect_index": item.effect_index,
             }
 
         runtime_vfx_asset_spec = RuntimeVfxAssetSpec.model_validate(
@@ -242,22 +297,24 @@ def select_prompt_items(
             raise RuntimeError(
                 "max_textures is too low to generate the minimum valid RuntimeVfxAssetSpec"
             )
-        selected.append(SelectedPrompt(required_item, required_item.usage))
-        selected_ids.add((required_item.slot, required_item.usage))
+        required_key = _asset_key_for_prompt_item(required_item)
+        selected.append(SelectedPrompt(required_item, required_key))
+        selected_ids.add((required_item.slot, required_key))
 
     remaining = [
         item
         for item in prompt_items
-        if (item.slot, item.usage) not in selected_ids
+        if (item.slot, _asset_key_for_prompt_item(item)) not in selected_ids
     ]
-    remaining.sort(key=lambda item: (USAGE_PRIORITY[item.usage], item.slot))
+    remaining.sort(key=lambda item: (USAGE_PRIORITY.get(item.usage, 99), item.slot))
 
     for item in remaining:
+        asset_key = _asset_key_for_prompt_item(item)
         if len(selected) >= max_textures:
-            warnings.append(f"Skipped {item.slot} {item.usage} due to max_textures limit")
+            warnings.append(f"Skipped {item.slot} {asset_key} due to max_textures limit")
             continue
-        selected.append(SelectedPrompt(item, item.usage))
-        selected_ids.add((item.slot, item.usage))
+        selected.append(SelectedPrompt(item, asset_key))
+        selected_ids.add((item.slot, asset_key))
 
     return selected, warnings
 
@@ -283,6 +340,17 @@ def _first_required_item(
     return None
 
 
+def _asset_key_for_prompt_item(item: RuntimeVfxPromptItem) -> str:
+    parts = [item.usage]
+    if item.trigger:
+        parts.append(item.trigger.removeprefix("on_"))
+    if item.action:
+        parts.append(item.action)
+    if item.effect_index is not None:
+        parts.append(str(item.effect_index))
+    return "_".join(parts)
+
+
 def _runtime_output_location(hero_id: str, project_id: str | None) -> tuple[Path, str]:
     if project_id:
         safe_id = sanitize_project_id(project_id)
@@ -300,7 +368,13 @@ def _parse_image_size(image_size: str) -> tuple[int, int]:
 
 
 def _should_loop(skill_type: str, usage: str) -> bool:
-    return usage == "aura" or (usage == "ground_decal" and skill_type == "aoe_dot")
+    return usage in {
+        "aura",
+        "summon_idle",
+        "burn_loop",
+        "poison_cloud",
+        "status_loop",
+    } or usage == "ground_decal" and skill_type == "aoe_dot"
 
 
 def _color_for_slot(req: RuntimeVfxGenerationRequest, slot: str) -> str:
@@ -336,9 +410,11 @@ def _build_atlas_prompt(
     )
     cells = [
         (
-            f"Cell {index}: {selected_prompt.item.slot} {selected_prompt.item.usage}, "
+            f"Cell {index}: {selected_prompt.item.slot} {selected_prompt.asset_key}, "
             f"{selected_prompt.item.skill_type} skill, "
             f"{selected_prompt.item.render_mode} render target, "
+            f"trigger {selected_prompt.item.trigger or 'default'}, "
+            f"action {selected_prompt.item.action or 'default'}, "
             f"style from {selected_prompt.item.skill_name}. "
             f"{_atlas_cell_instruction(index - 1, atlas_size, atlas_size, grid)} "
             f"Exact texture prompt for this cell: {selected_prompt.item.prompt}"
@@ -402,7 +478,7 @@ def _crop_atlas_textures(
             item = selected_prompt.item
             box = _atlas_cell_box(index, atlas.width, atlas.height, grid)
             texture = atlas.crop((box.left, box.upper, box.right, box.lower))
-            file_name = f"{item.slot}_{sanitize_file_name(item.usage)}.png"
+            file_name = f"{item.slot}_{sanitize_file_name(selected_prompt.asset_key)}.png"
             texture_path = output_dir / file_name
             texture.save(texture_path, format="PNG")
             cleanup_runtime_vfx_texture(str(texture_path))

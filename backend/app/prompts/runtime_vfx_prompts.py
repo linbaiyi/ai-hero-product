@@ -16,13 +16,32 @@ USAGE_DETAILS = {
         "single summoned creature body sprite, readable magical unit silhouette, "
         "front-facing three-quarter view, no environment, no baked ground plane"
     ),
+    "cast_flash": "brief casting flash, hand or origin burst, compact magical ignition sprite",
+    "cast_circle": (
+        "strict top-down casting circle, flat rune ring, readable activation marker, "
+        "centered circular texture"
+    ),
+    "zone_tick": (
+        "top-down recurring damage pulse texture, flat area tick marker, soft rhythmic glow"
+    ),
+    "summon_spawn": "summoning arrival flash, portal pop, compact spawn burst sprite",
+    "summon_idle": "summoned unit idle aura, small follow halo, readable support glow",
+    "summon_expire": "summoned unit expiration burst, death pop explosion, radial sprite",
+    "status_loop": "looping status effect sprite, compact readable debuff marker",
+    "burn_loop": "looping flame status effect, small persistent fire lick sprite",
+    "poison_cloud": "looping toxic cloud status effect, small green vapor puff sprite",
+    "mark_sigil": "flat target mark sigil, readable magical debuff seal",
+    "mark_sigial": "flat target mark sigil, readable magical debuff seal",
+    "stun_stars": "small orbiting stun stars sprite, readable daze marker",
 }
 
 USAGE_NEGATIVE_DETAILS = {
     "ground_decal": (
         "no dome, no sphere, no shield, no hemisphere, no vertical perspective, "
         "no side view, no 3D object, no mound, no wall of fire, no raised barrier"
-    )
+    ),
+    "cast_circle": "no side view, no vertical pillar, no raised 3D object",
+    "zone_tick": "no side view, no vertical wall, no character, no environment",
 }
 
 

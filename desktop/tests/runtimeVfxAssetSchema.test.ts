@@ -281,6 +281,64 @@ describe("RuntimeVfxAssetSpec validation", () => {
     expect(validateRuntimeVfxAssetSpec(spec).success).toBe(true);
   });
 
+  it("stage-aware asset metadata passes validation", () => {
+    const spec = cloneSpec();
+    spec.skills.Q.assets.cast_flash = {
+      path: "runtime_textures/Q_cast_flash.png",
+      usage: "cast_flash",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1.5,
+      duration: 0.25,
+      loop: false,
+      trigger: "on_cast",
+      action: "spawn_projectile",
+      effect_index: 0,
+    };
+
+    const result = validateRuntimeVfxAssetSpec(spec);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills.Q.assets.cast_flash.trigger).toBe("on_cast");
+      expect(result.data.skills.Q.assets.cast_flash.action).toBe(
+        "spawn_projectile",
+      );
+      expect(result.data.skills.Q.assets.cast_flash.effect_index).toBe(0);
+    }
+  });
+
+  it("invalid stage-aware trigger fails validation", () => {
+    const spec = cloneSpec();
+    spec.skills.Q.assets.cast_flash = {
+      path: "runtime_textures/Q_cast_flash.png",
+      usage: "cast_flash",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1.5,
+      duration: 0.25,
+      loop: false,
+      trigger: "after_cast",
+    };
+
+    expectInvalid(spec);
+  });
+
+  it("cast_circle requires ground render mode", () => {
+    const spec = cloneSpec();
+    spec.skills.Q.assets.cast_circle = {
+      path: "runtime_textures/Q_cast_circle.png",
+      usage: "cast_circle",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 2,
+      duration: 0.5,
+      loop: false,
+    };
+
+    expectInvalid(spec);
+  });
+
   it("normalizeRuntimeVfxAssetSpec sorts skills Q/W/E/R", () => {
     const spec = cloneSpec();
     spec.skills = {

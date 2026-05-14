@@ -1,5 +1,6 @@
 import type {
   RuntimeVfxAssetEntry,
+  RuntimeVfxAction,
   RuntimeVfxAssetSpec,
   RuntimeVfxBlendMode,
   RuntimeVfxRenderMode,
@@ -7,6 +8,7 @@ import type {
   RuntimeVfxSkillType,
   RuntimeVfxSlot,
   RuntimeVfxSpawnOffset,
+  RuntimeVfxTrigger,
   RuntimeVfxUsage,
 } from "./runtimeVfxTypes";
 
@@ -30,6 +32,13 @@ const RUNTIME_VFX_USAGES = [
   "aura",
   "trail",
   "summon_body",
+  "cast_flash",
+  "cast_circle",
+  "zone_tick",
+  "summon_spawn",
+  "summon_idle",
+  "summon_expire",
+  "status_loop",
   "burn_loop",
   "poison_cloud",
   "mark_sigil",
@@ -44,6 +53,26 @@ const RUNTIME_VFX_RENDER_MODES = [
   "aura_ring",
 ] as const;
 const RUNTIME_VFX_BLEND_MODES = ["alpha", "additive", "normal"] as const;
+const RUNTIME_VFX_TRIGGERS = [
+  "on_cast",
+  "on_projectile_hit",
+  "on_zone_tick",
+  "on_zone_expire",
+  "on_summon_attack",
+  "on_summon_expire",
+  "on_summon_death",
+  "on_status_tick",
+  "on_status_expire",
+] as const;
+const RUNTIME_VFX_ACTIONS = [
+  "damage",
+  "aoe_damage",
+  "apply_status",
+  "spawn_zone",
+  "summon",
+  "spawn_projectile",
+  "spawn_vfx_event",
+] as const;
 
 export const runtimeVfxAssetSchema = {
   slots: RUNTIME_VFX_SLOTS,
@@ -51,6 +80,8 @@ export const runtimeVfxAssetSchema = {
   usages: RUNTIME_VFX_USAGES,
   render_modes: RUNTIME_VFX_RENDER_MODES,
   blend_modes: RUNTIME_VFX_BLEND_MODES,
+  triggers: RUNTIME_VFX_TRIGGERS,
+  actions: RUNTIME_VFX_ACTIONS,
 };
 
 export function validateRuntimeVfxAssetSpec(
@@ -258,6 +289,23 @@ function validateAsset(
     `${path}.follow_target`,
     errors,
   );
+  const trigger = optionalEnumValue<RuntimeVfxTrigger>(
+    asset.trigger,
+    RUNTIME_VFX_TRIGGERS,
+    `${path}.trigger`,
+    errors,
+  );
+  const action = optionalEnumValue<RuntimeVfxAction>(
+    asset.action,
+    RUNTIME_VFX_ACTIONS,
+    `${path}.action`,
+    errors,
+  );
+  const effect_index = optionalNonNegativeInteger(
+    asset.effect_index,
+    `${path}.effect_index`,
+    errors,
+  );
 
   if (asset_path) {
     validateSafeAssetPath(asset_path, `${path}.path`, errors);
@@ -281,7 +329,10 @@ function validateAsset(
     opacity === null ||
     rotation_speed === null ||
     spawn_offset === null ||
-    follow_target === null
+    follow_target === null ||
+    trigger === null ||
+    action === null ||
+    effect_index === null
   ) {
     return null;
   }
@@ -299,6 +350,9 @@ function validateAsset(
     rotation_speed,
     spawn_offset,
     follow_target,
+    trigger,
+    action,
+    effect_index,
   });
 }
 
@@ -315,6 +369,13 @@ function validateUsageRenderMode(
     aura: ["aura_ring", "ground_plane"],
     trail: ["sprite_trail", "sprite"],
     summon_body: ["sprite", "billboard_plane"],
+    cast_flash: ["sprite", "billboard_plane"],
+    cast_circle: ["ground_plane", "aura_ring"],
+    zone_tick: ["ground_plane", "sprite", "billboard_plane"],
+    summon_spawn: ["sprite", "billboard_plane"],
+    summon_idle: ["sprite", "billboard_plane", "aura_ring"],
+    summon_expire: ["sprite", "billboard_plane"],
+    status_loop: ["sprite", "billboard_plane", "ground_plane"],
     burn_loop: ["sprite", "billboard_plane", "ground_plane"],
     poison_cloud: ["sprite", "billboard_plane", "ground_plane"],
     mark_sigil: ["sprite", "billboard_plane", "ground_plane"],
@@ -336,10 +397,15 @@ function validateMinimumAssetsForSkillType(
   const usages = Object.values(assets).map((asset) => asset.usage);
   const hasUsage = (usage: RuntimeVfxUsage) => usages.includes(usage);
 
-  if (skillType === "projectile" && !hasUsage("projectile")) {
+  if (skillType === "projectile" && !hasUsage("projectile") && !hasUsage("cast_flash")) {
     errors.push(`${path} projectile skill must include a projectile asset`);
   }
-  if (skillType === "aoe" && !hasUsage("ground_decal") && !hasUsage("impact")) {
+  if (
+    skillType === "aoe" &&
+    !hasUsage("ground_decal") &&
+    !hasUsage("impact") &&
+    !hasUsage("cast_circle")
+  ) {
     errors.push(`${path} aoe skill must include ground_decal or impact`);
   }
   if (skillType === "aoe_dot" && !hasUsage("ground_decal")) {
@@ -351,7 +417,7 @@ function validateMinimumAssetsForSkillType(
   if (skillType === "buff" && !hasUsage("aura")) {
     errors.push(`${path} buff skill must include an aura asset`);
   }
-  if (skillType === "summon" && !hasUsage("summon_body")) {
+  if (skillType === "summon" && !hasUsage("summon_body") && !hasUsage("summon_spawn")) {
     errors.push(`${path} summon skill must include summon_body`);
   }
 }
@@ -464,6 +530,21 @@ function optionalNumber(
   return input;
 }
 
+function optionalNonNegativeInteger(
+  input: unknown,
+  path: string,
+  errors: string[],
+): number | undefined | null {
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+  if (!Number.isInteger(input) || (input as number) < 0) {
+    errors.push(`${path} must be a non-negative integer`);
+    return null;
+  }
+  return input as number;
+}
+
 function optionalLoop(
   input: unknown,
   path: string,
@@ -516,6 +597,18 @@ function enumValue<T extends string>(
     return null;
   }
   return input as T;
+}
+
+function optionalEnumValue<T extends string>(
+  input: unknown,
+  allowed: readonly T[],
+  path: string,
+  errors: string[],
+): T | undefined | null {
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+  return enumValue(input, allowed, path, errors);
 }
 
 function isFiniteNumber(input: unknown): input is number {

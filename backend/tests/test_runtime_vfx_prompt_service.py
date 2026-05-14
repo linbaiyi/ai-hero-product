@@ -205,7 +205,7 @@ def test_summon_skill_creates_summon_body_aura_impact_prompts():
 
     response = generate(request_payload(spec=spec))
 
-    assert usages_for_slot(response, "Q") == {"summon_body", "aura", "impact"}
+    assert usages_for_slot(response, "Q") == {"summon_body", "summon_spawn", "summon_idle"}
     summon_prompt = next(
         item.prompt
         for item in response.prompts
@@ -213,6 +213,81 @@ def test_summon_skill_creates_summon_body_aura_impact_prompts():
     )
     assert "summoned creature body sprite" in summon_prompt
     assert "transparent background" in summon_prompt
+
+
+def test_skill_effects_create_stage_aware_runtime_vfx_prompts():
+    spec = playable_spec()
+    spec["skills"][0]["effects"] = [
+        {
+            "trigger": "on_cast",
+            "action": "spawn_projectile",
+            "target": "target_position",
+        },
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_zone",
+            "target": "projectile_position",
+            "damage": 20,
+            "radius": 3,
+            "duration": 4,
+            "tick_interval": 1,
+            "status_effects": [
+                {
+                    "type": "burn",
+                    "duration": 3,
+                    "tick_interval": 1,
+                    "damage": 8,
+                }
+            ],
+        },
+    ]
+
+    response = generate(request_payload(spec=spec))
+    q_items = [item for item in response.prompts if item.slot == "Q"]
+    q_usages = {item.usage for item in q_items}
+
+    assert {"cast_flash", "projectile", "trail", "impact", "ground_decal", "zone_tick", "burn_loop"} <= q_usages
+    assert any(
+        item.usage == "ground_decal"
+        and item.trigger == "on_projectile_hit"
+        and item.action == "spawn_zone"
+        and item.effect_index == 1
+        for item in q_items
+    )
+
+
+def test_summon_expire_effect_creates_expiration_impact_prompt():
+    spec = playable_spec()
+    spec["skills"][0].update(
+        {
+            "name": "Flame Spirit",
+            "type": "summon",
+            "duration": 8,
+            "damage": 18,
+            "range": 8,
+            "radius": 1.2,
+            "description": "Summon a small flame spirit that explodes when it expires.",
+            "effects": [
+                {
+                    "trigger": "on_cast",
+                    "action": "summon",
+                    "target": "target_position",
+                },
+                {
+                    "trigger": "on_summon_expire",
+                    "action": "aoe_damage",
+                    "target": "summon_position",
+                    "damage": 80,
+                    "radius": 3,
+                },
+            ],
+        }
+    )
+    spec["skills"][0].pop("speed", None)
+
+    response = generate(request_payload(spec=spec))
+
+    assert {"summon_body", "summon_spawn", "summon_idle", "summon_expire", "impact"} <= usages_for_slot(response, "Q")
 
 
 def test_prompts_contain_transparent_background_keywords():

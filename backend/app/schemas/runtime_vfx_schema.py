@@ -13,6 +13,13 @@ AssetUsage = Literal[
     "aura",
     "trail",
     "summon_body",
+    "cast_flash",
+    "cast_circle",
+    "zone_tick",
+    "summon_spawn",
+    "summon_idle",
+    "summon_expire",
+    "status_loop",
     "burn_loop",
     "poison_cloud",
     "mark_sigil",
@@ -26,6 +33,26 @@ RenderMode = Literal[
     "billboard_plane",
     "sprite_trail",
     "aura_ring",
+]
+SkillEffectTrigger = Literal[
+    "on_cast",
+    "on_projectile_hit",
+    "on_zone_tick",
+    "on_zone_expire",
+    "on_summon_attack",
+    "on_summon_expire",
+    "on_summon_death",
+    "on_status_tick",
+    "on_status_expire",
+]
+SkillEffectAction = Literal[
+    "damage",
+    "aoe_damage",
+    "apply_status",
+    "spawn_zone",
+    "summon",
+    "spawn_projectile",
+    "spawn_vfx_event",
 ]
 
 
@@ -48,6 +75,9 @@ class RuntimeVfxAssetEntry(BaseModel):
     rotation_speed: float | None = None
     spawn_offset: SpawnOffset | None = None
     follow_target: str | None = None
+    trigger: SkillEffectTrigger | None = None
+    action: SkillEffectAction | None = None
+    effect_index: int | None = Field(default=None, ge=0)
 
     @field_validator("path")
     @classmethod
@@ -93,6 +123,13 @@ class RuntimeVfxAssetEntry(BaseModel):
             "aura": {"aura_ring", "ground_plane"},
             "trail": {"sprite_trail", "sprite"},
             "summon_body": {"sprite", "billboard_plane"},
+            "cast_flash": {"sprite", "billboard_plane"},
+            "cast_circle": {"ground_plane", "aura_ring"},
+            "zone_tick": {"ground_plane", "sprite", "billboard_plane"},
+            "summon_spawn": {"sprite", "billboard_plane"},
+            "summon_idle": {"sprite", "billboard_plane", "aura_ring"},
+            "summon_expire": {"sprite", "billboard_plane"},
+            "status_loop": {"sprite", "billboard_plane", "ground_plane"},
             "burn_loop": {"sprite", "billboard_plane", "ground_plane"},
             "poison_cloud": {"sprite", "billboard_plane", "ground_plane"},
             "mark_sigil": {"sprite", "billboard_plane", "ground_plane"},
@@ -121,9 +158,9 @@ class RuntimeVfxSkillSpec(BaseModel):
     @model_validator(mode="after")
     def skill_type_must_have_required_asset_usage(self) -> "RuntimeVfxSkillSpec":
         usages = {asset.usage for asset in self.assets.values()}
-        if self.skill_type == "projectile" and "projectile" not in usages:
+        if self.skill_type == "projectile" and not ({"projectile", "cast_flash"} & usages):
             raise ValueError("projectile skill requires a projectile asset")
-        if self.skill_type == "aoe" and not ({"ground_decal", "impact"} & usages):
+        if self.skill_type == "aoe" and not ({"ground_decal", "impact", "cast_circle"} & usages):
             raise ValueError("aoe skill requires ground_decal or impact asset")
         if self.skill_type == "aoe_dot" and "ground_decal" not in usages:
             raise ValueError("aoe_dot skill requires a ground_decal asset")
@@ -131,7 +168,7 @@ class RuntimeVfxSkillSpec(BaseModel):
             raise ValueError("dash skill requires trail or impact asset")
         if self.skill_type == "buff" and "aura" not in usages:
             raise ValueError("buff skill requires an aura asset")
-        if self.skill_type == "summon" and "summon_body" not in usages:
+        if self.skill_type == "summon" and not ({"summon_body", "summon_spawn"} & usages):
             raise ValueError("summon skill requires a summon_body asset")
         return self
 

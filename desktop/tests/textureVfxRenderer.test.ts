@@ -42,6 +42,40 @@ function createTextureWithSize(width: number, height: number): THREE.Texture {
   return texture;
 }
 
+function createProjectileRuntimeVfxSpecForSlot(slot: "Q" | "W" | "E" | "R"): RuntimeVfxAssetSpec {
+  const spec = JSON.parse(JSON.stringify(defaultRuntimeVfxAssetSpec)) as RuntimeVfxAssetSpec;
+  spec.skills[slot].skill_type = "projectile";
+  spec.skills[slot].assets = {
+    projectile: {
+      path: `runtime_vfx/generated/hero/${slot}_projectile.png`,
+      usage: "projectile",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1.2,
+      duration: 0.8,
+      loop: false,
+      color_tint: "#ff5a1f",
+      trigger: "on_cast",
+      action: "spawn_projectile",
+      effect_index: 0,
+    },
+    impact_hit: {
+      path: `runtime_vfx/generated/hero/${slot}_impact_hit.png`,
+      usage: "impact",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 2.5,
+      duration: 0.35,
+      loop: false,
+      color_tint: "#ff8a2a",
+      trigger: "on_projectile_hit",
+      action: "damage",
+      effect_index: 1,
+    },
+  };
+  return spec;
+}
+
 function createSummonRuntimeVfxSpec(): RuntimeVfxAssetSpec {
   const spec = JSON.parse(JSON.stringify(defaultRuntimeVfxAssetSpec)) as RuntimeVfxAssetSpec;
   spec.skills.Q.skill_type = "summon";
@@ -129,6 +163,24 @@ describe("runtime texture loader and VFX renderer", () => {
 
   it("findAssetForSkillUsage returns undefined for missing usage", () => {
     expect(findAssetForSkillUsage(defaultRuntimeVfxAssetSpec, "Q", "aura")).toBeUndefined();
+  });
+
+  it("findAssetForSkillUsage can select a stage-aware asset for the same usage", () => {
+    const spec = createProjectileRuntimeVfxSpecForSlot("Q");
+    spec.skills.Q.assets.impact_zone = {
+      ...spec.skills.Q.assets.impact_hit,
+      path: "runtime_vfx/generated/hero/Q_impact_zone.png",
+      action: "spawn_zone",
+      effect_index: 2,
+    };
+
+    const asset = findAssetForSkillUsage(spec, "Q", "impact", {
+      trigger: "on_projectile_hit",
+      action: "spawn_zone",
+      effect_index: 2,
+    });
+
+    expect(asset?.path).toBe("runtime_vfx/generated/hero/Q_impact_zone.png");
   });
 
   it("summon_body texture replaces fallback summon mesh when loaded", () => {
@@ -362,6 +414,81 @@ describe("runtime texture loader and VFX renderer", () => {
     expect(proceduralKinds).toContain("upward_sparks");
     expect(handles.handles.projectiles.get("projectile_1")?.visible).toBe(false);
     expect(handles.handles.zones.get("zone_1")?.visible).toBe(false);
+  });
+
+  it("renders projectile texture for any slot when the asset spec contains projectile usage", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.projectiles.push({
+      id: "projectile_e",
+      skill_slot: "E",
+      position: { x: 2, z: 1 },
+      direction: { x: 1, z: 0 },
+      speed: 8,
+      radius: 0.8,
+      damage: 100,
+      remaining_range: 10,
+      status_effects: [],
+      is_alive: true,
+    });
+    const spec = createProjectileRuntimeVfxSpecForSlot("E");
+
+    renderGameState(handles, state);
+    updateTextureVfx(handles, state, spec, createFakeTextureCache());
+
+    expect(handles.handles.texture_vfx?.projectiles.get("projectile_e")).toBeInstanceOf(
+      THREE.Sprite,
+    );
+    expect(handles.handles.projectiles.get("projectile_e")?.visible).toBe(false);
+  });
+
+  it("does not mark hit events processed before impact texture has loaded", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.projectiles.push({
+      id: "projectile_1",
+      skill_slot: "Q",
+      position: { x: 1, z: 0 },
+      direction: { x: 1, z: 0 },
+      speed: 8,
+      radius: 0.8,
+      damage: 100,
+      remaining_range: 10,
+      status_effects: [],
+      is_alive: true,
+    });
+    state.events.push({
+      type: "projectile_hit",
+      projectile_id: "projectile_1",
+      enemy_id: state.enemies[0].id,
+    });
+    const spec = createProjectileRuntimeVfxSpecForSlot("Q");
+    const texture = createTextureWithSize(128, 128);
+    let impactLoaded = false;
+    const cache: RuntimeTextureCache = {
+      baseUrl: "http://127.0.0.1:8000",
+      load: vi.fn((path: string) => {
+        if (path.includes("impact")) {
+          impactLoaded = true;
+        }
+        return Promise.resolve(texture);
+      }),
+      get: vi.fn((path: string) => {
+        if (path.includes("impact")) {
+          return impactLoaded ? texture : null;
+        }
+        return texture;
+      }),
+      getWarnings: vi.fn().mockReturnValue([]),
+      dispose: vi.fn(),
+    };
+
+    renderGameState(handles, state);
+    updateTextureVfx(handles, state, spec, cache);
+    expect(handles.handles.texture_vfx?.impacts.size).toBe(0);
+
+    updateTextureVfx(handles, state, spec, cache);
+    expect(handles.handles.texture_vfx?.impacts.size).toBe(1);
   });
 
   it("sizes runtime texture VFX from gameplay hit radius", () => {

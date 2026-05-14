@@ -178,6 +178,35 @@ def request_payload(max_textures: int = 8, project_id: str = "runtime_vfx_test")
     }
 
 
+def effect_chain_request_payload(project_id: str = "runtime_vfx_effect_chain") -> dict:
+    payload = request_payload(max_textures=12, project_id=project_id)
+    payload["playable_spec"]["skills"][0]["effects"] = [
+        {
+            "trigger": "on_cast",
+            "action": "spawn_projectile",
+            "target": "target_position",
+        },
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_zone",
+            "target": "projectile_position",
+            "damage": 20,
+            "radius": 3,
+            "duration": 4,
+            "tick_interval": 1,
+            "status_effects": [
+                {
+                    "type": "burn",
+                    "duration": 3,
+                    "tick_interval": 1,
+                    "damage": 8,
+                }
+            ],
+        },
+    ]
+    return payload
+
+
 def summon_request_payload(project_id: str = "runtime_vfx_summon_test") -> dict:
     payload = request_payload(max_textures=8, project_id=project_id)
     summon_skill = payload["playable_spec"]["skills"][0]
@@ -358,6 +387,25 @@ def test_summon_skill_generates_summon_body_asset():
     assert q_assets["summon_body"].usage == "summon_body"
     assert any(asset.usage == "summon_body" for asset in response.generated_assets)
     assert output_file_for_asset_path(q_assets["summon_body"].path).exists()
+
+
+def test_effect_chain_generates_stage_aware_assets_without_overwriting_usage():
+    service = RuntimeVfxGenerationService(image_client=FakeImageClient())
+    response = service.generate(
+        RuntimeVfxGenerationRequest.model_validate(
+            effect_chain_request_payload(project_id="runtime_vfx_service_effects")
+        )
+    )
+
+    q_assets = response.runtime_vfx_asset_spec.skills["Q"].assets
+
+    assert "projectile_cast_spawn_projectile_0" in q_assets
+    assert "ground_decal_projectile_hit_spawn_zone_1" in q_assets
+    assert "burn_loop_projectile_hit_spawn_zone_1" in q_assets
+    assert q_assets["ground_decal_projectile_hit_spawn_zone_1"].trigger == "on_projectile_hit"
+    assert q_assets["ground_decal_projectile_hit_spawn_zone_1"].action == "spawn_zone"
+    assert q_assets["ground_decal_projectile_hit_spawn_zone_1"].effect_index == 1
+    assert len({asset.path for asset in response.generated_assets}) == len(response.generated_assets)
 
 
 def test_invalid_playable_spec_fails():

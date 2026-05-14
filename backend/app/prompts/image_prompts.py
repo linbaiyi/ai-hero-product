@@ -9,6 +9,18 @@ VFX_TEXTURE_RESOURCE_TYPES = (
     "particle",
     "beam",
     "summon_body",
+    "cast_flash",
+    "cast_circle",
+    "zone_tick",
+    "summon_spawn",
+    "summon_idle",
+    "summon_expire",
+    "status_loop",
+    "burn_loop",
+    "poison_cloud",
+    "mark_sigil",
+    "mark_sigial",
+    "stun_stars",
 )
 
 VFX_PROMPT_TEMPLATES: dict[str, str] = {
@@ -68,6 +80,90 @@ VFX_PROMPT_TEMPLATES: dict[str, str] = {
         "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
         "billboard sprite rendering, transparent background, centered composition, "
         "no environment, no text, no logo, no watermark"
+    ),
+    "cast_flash": (
+        "isolated casting flash sprite for {skill_name}, {element} element, {keywords}, "
+        "brief origin burst, compact activation spark, bright center, soft glow edges, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "cast_circle": (
+        "top-down casting circle decal for {skill_name}, {element} element, {keywords}, "
+        "flat rune activation ring, centered symmetrical circle, clean readable telegraph marker, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "ground projection, plane decal rendering, transparent background, centered composition, "
+        "no perspective camera angle, no character, no environment, no text, no logo, no watermark"
+    ),
+    "zone_tick": (
+        "top-down recurring zone tick decal for {skill_name}, {element} element, {keywords}, "
+        "flat pulsing area texture, circular damage rhythm marker, soft transparent edges, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "ground projection, plane decal rendering, additive blending, transparent background, centered composition, "
+        "no perspective camera angle, no character, no environment, no text, no logo, no watermark"
+    ),
+    "summon_spawn": (
+        "isolated summon spawn burst sprite for {skill_name}, {element} element, {keywords}, "
+        "arrival flash, compact portal pop, bright magical emergence, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "summon_idle": (
+        "small summon idle aura texture for {skill_name}, {element} element, {keywords}, "
+        "compact follow halo, readable minion support glow, circular loop energy, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "aura ring rendering, additive blending, transparent background, centered composition, "
+        "no environment, no text, no logo, no watermark"
+    ),
+    "summon_expire": (
+        "isolated summon expiration burst sprite for {skill_name}, {element} element, {keywords}, "
+        "death pop explosion, radial release, bright center, outward fragments, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "status_loop": (
+        "small looping status effect sprite for {skill_name}, {element} element, {keywords}, "
+        "readable debuff marker, compact magical loop, clean silhouette, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "burn_loop": (
+        "small looping burn fire sprite for {skill_name}, fire element, {keywords}, "
+        "persistent flame lick, readable burning debuff marker, clean glowing edges, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "poison_cloud": (
+        "small looping poison cloud sprite for {skill_name}, {element} element, {keywords}, "
+        "toxic vapor puff, readable poison debuff marker, soft transparent edges, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
+    ),
+    "mark_sigil": (
+        "top-down target mark sigil decal for {skill_name}, {element} element, {keywords}, "
+        "flat readable debuff seal, centered magical symbol, clean circular marker, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "ground projection, plane decal rendering, transparent background, centered composition, "
+        "no perspective camera angle, no character, no environment, no text, no logo, no watermark"
+    ),
+    "mark_sigial": (
+        "top-down target mark sigil decal for {skill_name}, {element} element, {keywords}, "
+        "flat readable debuff seal, centered magical symbol, clean circular marker, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "ground projection, plane decal rendering, transparent background, centered composition, "
+        "no perspective camera angle, no character, no environment, no text, no logo, no watermark"
+    ),
+    "stun_stars": (
+        "small orbiting stun stars sprite for {skill_name}, {element} element, {keywords}, "
+        "readable daze marker, bright small star shapes, clean transparent edges, "
+        "game-ready VFX texture, optimized for real-time rendering, suitable for Three.js or Babylon.js, "
+        "sprite rendering, additive blending, transparent background, centered composition, "
+        "no character, no environment, no text, no logo, no watermark"
     ),
 }
 

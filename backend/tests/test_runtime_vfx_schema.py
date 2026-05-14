@@ -302,3 +302,41 @@ def test_status_runtime_vfx_usage_passes():
     spec = validate(data)
 
     assert spec.skills["Q"].assets["status"].usage == "burn_loop"
+
+
+def test_stage_aware_runtime_vfx_asset_fields_pass():
+    data = load_example()
+    data["skills"]["Q"]["assets"]["cast_flash"] = {
+        "path": "runtime_textures/Q_cast_flash.png",
+        "usage": "cast_flash",
+        "blend_mode": "additive",
+        "render_mode": "sprite",
+        "scale": 1.5,
+        "duration": 0.25,
+        "loop": False,
+        "trigger": "on_cast",
+        "action": "spawn_projectile",
+        "effect_index": 0,
+    }
+
+    spec = validate(data)
+
+    assert spec.skills["Q"].assets["cast_flash"].trigger == "on_cast"
+    assert spec.skills["Q"].assets["cast_flash"].action == "spawn_projectile"
+    assert spec.skills["Q"].assets["cast_flash"].effect_index == 0
+
+
+def test_cast_circle_requires_ground_style_render_mode():
+    data = load_example()
+    data["skills"]["Q"]["assets"]["cast_circle"] = {
+        "path": "runtime_textures/Q_cast_circle.png",
+        "usage": "cast_circle",
+        "blend_mode": "additive",
+        "render_mode": "sprite",
+        "scale": 2,
+        "duration": 0.5,
+        "loop": False,
+    }
+
+    with pytest.raises(ValidationError):
+        validate(data)
