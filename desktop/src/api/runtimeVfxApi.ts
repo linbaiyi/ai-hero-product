@@ -46,7 +46,7 @@ export async function generateRuntimeVfxAssets(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         runtime_vfx_asset_spec: null,
-        max_textures: 8,
+        max_textures: 20,
         image_size: "512x512",
         transparent_background: true,
         ...payload,

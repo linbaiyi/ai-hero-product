@@ -32,7 +32,7 @@ RuntimeVfxGeneratedUsage = Literal[
 class RuntimeVfxGenerationRequest(BaseModel):
     playable_spec: HeroPlayableSpec
     runtime_vfx_asset_spec: RuntimeVfxAssetSpec | None = None
-    max_textures: int = Field(default=8, ge=1, le=20)
+    max_textures: int = Field(default=20, ge=1, le=20)
     image_size: Literal["256x256", "512x512", "768x768", "1024x1024"] = "512x512"
     transparent_background: bool = True
     project_id: str | None = None

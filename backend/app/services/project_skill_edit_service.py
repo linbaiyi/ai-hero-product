@@ -353,8 +353,7 @@ def _replace_runtime_vfx_skill_assets(
         if asset.usage in required_usages and asset.usage not in regenerate_usages:
             next_assets[key] = asset.model_dump(exclude_none=True)
         else:
-            if asset.usage not in regenerate_usages:
-                removed_paths.append(asset.path)
+            removed_paths.append(asset.path)
 
     required_missing_usages = _missing_required_runtime_usages(
         target_skill.type,
@@ -411,8 +410,14 @@ def _replace_runtime_vfx_skill_assets(
     }
     validated_runtime = RuntimeVfxAssetSpec.model_validate(updated_runtime)
 
+    next_paths = {
+        asset["path"]
+        for asset in next_assets.values()
+        if isinstance(asset, dict) and isinstance(asset.get("path"), str)
+    }
     for removed_path in removed_paths:
-        _delete_runtime_vfx_file_if_exists(removed_path)
+        if removed_path not in next_paths:
+            _delete_runtime_vfx_file_if_exists(removed_path)
 
     data["runtime_vfx_asset_spec"] = validated_runtime.model_dump()
 

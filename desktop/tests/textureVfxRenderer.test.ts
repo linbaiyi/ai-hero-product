@@ -691,10 +691,25 @@ describe("runtime texture loader and VFX renderer", () => {
       position: { x: 3, z: 2 },
       radius: 0.8,
       source_trigger: "on_projectile_hit",
+      source_action: "spawn_vfx_event",
+      effect_index: 3,
     });
     const spec = createProjectileRuntimeVfxSpecForSlot("Q");
-    spec.skills.Q.assets.hit_flash = {
-      path: "runtime_vfx/generated/hero/Q_hit_flash.png",
+    spec.skills.Q.assets.hit_flash_generic = {
+      path: "runtime_vfx/generated/hero/Q_hit_flash_generic.png",
+      usage: "hit_flash",
+      blend_mode: "additive",
+      render_mode: "sprite",
+      scale: 1.4,
+      duration: 0.22,
+      loop: false,
+      color_tint: "#ffb15a",
+      trigger: "on_projectile_hit",
+      action: "damage",
+      effect_index: 1,
+    };
+    spec.skills.Q.assets.hit_flash_exact = {
+      path: "runtime_vfx/generated/hero/Q_hit_flash_exact.png",
       usage: "hit_flash",
       blend_mode: "additive",
       render_mode: "sprite",
@@ -704,11 +719,12 @@ describe("runtime texture loader and VFX renderer", () => {
       color_tint: "#ffb15a",
       trigger: "on_projectile_hit",
       action: "spawn_vfx_event",
-      effect_index: 2,
+      effect_index: 3,
     };
+    const textureCache = createFakeTextureCache();
 
     renderGameState(handles, state);
-    updateTextureVfx(handles, state, spec, createFakeTextureCache());
+    updateTextureVfx(handles, state, spec, textureCache);
 
     const impactObject = [...(handles.handles.texture_vfx?.impacts.values() ?? [])][0];
     expect(impactObject).toBeInstanceOf(THREE.Sprite);
@@ -716,6 +732,106 @@ describe("runtime texture loader and VFX renderer", () => {
       (item) => item.id.startsWith("impact:vfx_event"),
     );
     expect(instance?.usage).toBe("hit_flash");
+    expect(textureCache.get).toHaveBeenCalledWith(
+      "runtime_vfx/generated/hero/Q_hit_flash_exact.png",
+    );
+  });
+
+  it("E projectile-spawned zone uses stage-aware decal and zone tick texture", () => {
+    const handles = createBaseScene();
+    const state = createState();
+    state.active_zones.push({
+      id: "zone_e_lava",
+      skill_slot: "E",
+      center: { x: 4, z: 2 },
+      radius: 2.5,
+      damage: 20,
+      duration_remaining: 3,
+      tick_interval: 1,
+      tick_timer: 1,
+      status_effects: [],
+      source_trigger: "on_projectile_hit",
+      source_action: "spawn_zone",
+      effect_index: 2,
+      is_alive: true,
+    });
+    state.events.push({
+      type: "zone_tick",
+      zone_id: "zone_e_lava",
+      hit_enemy_ids: [state.enemies[0].id],
+    });
+    const spec = JSON.parse(JSON.stringify(defaultRuntimeVfxAssetSpec)) as RuntimeVfxAssetSpec;
+    spec.skills.E.skill_type = "projectile";
+    spec.skills.E.assets = {
+      projectile: {
+        path: "runtime_vfx/generated/hero/E_projectile.png",
+        usage: "projectile",
+        blend_mode: "additive",
+        render_mode: "sprite",
+        scale: 1.2,
+        duration: 0.8,
+        loop: false,
+        color_tint: "#ff5a1f",
+        trigger: "on_cast",
+        action: "spawn_projectile",
+        effect_index: 0,
+      },
+      ground_decal_generic: {
+        path: "runtime_vfx/generated/hero/E_ground_decal_generic.png",
+        usage: "ground_decal",
+        blend_mode: "additive",
+        render_mode: "ground_plane",
+        scale: 4,
+        duration: 3,
+        loop: true,
+        color_tint: "#ff5a1f",
+        trigger: "on_cast",
+        action: "spawn_zone",
+        effect_index: 0,
+      },
+      ground_decal_projectile_hit: {
+        path: "runtime_vfx/generated/hero/E_ground_decal_projectile_hit.png",
+        usage: "ground_decal",
+        blend_mode: "additive",
+        render_mode: "ground_plane",
+        scale: 4,
+        duration: 3,
+        loop: true,
+        color_tint: "#ff5a1f",
+        trigger: "on_projectile_hit",
+        action: "spawn_zone",
+        effect_index: 2,
+      },
+      zone_tick_burn: {
+        path: "runtime_vfx/generated/hero/E_zone_tick_burn.png",
+        usage: "zone_tick",
+        blend_mode: "additive",
+        render_mode: "ground_plane",
+        scale: 3.5,
+        duration: 0.8,
+        loop: false,
+        color_tint: "#ff5a1f",
+        trigger: "on_zone_tick",
+        action: "spawn_zone",
+        effect_index: 2,
+      },
+    };
+    const textureCache = createFakeTextureCache();
+
+    renderGameState(handles, state);
+    updateTextureVfx(handles, state, spec, textureCache);
+
+    expect(textureCache.get).toHaveBeenCalledWith(
+      "runtime_vfx/generated/hero/E_ground_decal_projectile_hit.png",
+    );
+    expect(textureCache.get).toHaveBeenCalledWith(
+      "runtime_vfx/generated/hero/E_zone_tick_burn.png",
+    );
+    expect(handles.handles.texture_vfx?.zones.get("zone_e_lava")).toBeInstanceOf(THREE.Mesh);
+    const instance = [...(handles.handles.texture_vfx?.instances.values() ?? [])].find(
+      (item) => item.id.startsWith("impact:zone_tick"),
+    );
+    expect(instance?.usage).toBe("zone_tick");
   });
 
   it("R cast transient texture uses the skill cast target", () => {

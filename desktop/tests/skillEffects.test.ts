@@ -165,7 +165,10 @@ describe("event-driven skill effects", () => {
           event.type === "vfx_event" &&
           event.skill_slot === "Q" &&
           event.usage === "hit_flash" &&
-          event.position.x === 10,
+          event.position.x === 10 &&
+          event.source_trigger === "on_projectile_hit" &&
+          event.source_action === "spawn_vfx_event" &&
+          event.effect_index === 3,
       ),
     ).toBe(true);
   });

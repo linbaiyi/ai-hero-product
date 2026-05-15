@@ -73,6 +73,12 @@ const MAX_PROCEDURAL_TRAIL_INSTANCES = 40;
 const MAX_UPWARD_SPARKS_INSTANCES = 24;
 const DEFAULT_GROUND_DECAL_ASSET_SCALE = 4;
 
+type AssetSelectionCriteria = {
+  trigger?: string;
+  action?: string;
+  effect_index?: number;
+};
+
 export function createTextureVfxRenderer(
   options: TextureVfxRendererOptions,
 ): TextureVfxRenderer {
@@ -175,11 +181,7 @@ export function findAssetForSkillUsage(
   runtimeVfxAssetSpec: RuntimeVfxAssetSpec,
   slot: RuntimeVfxSlot,
   usage: RuntimeVfxUsage,
-  criteria: {
-    trigger?: string;
-    action?: string;
-    effect_index?: number;
-  } = {},
+  criteria: AssetSelectionCriteria = {},
 ): RuntimeVfxAssetEntry | undefined {
   const skill = runtimeVfxAssetSpec.skills[slot];
   if (!skill) {
@@ -191,12 +193,41 @@ export function findAssetForSkillUsage(
   }
 
   return (
-    candidates.find(
-      (asset) =>
-        (criteria.trigger === undefined || asset.trigger === criteria.trigger) &&
-        (criteria.action === undefined || asset.action === criteria.action) &&
-        (criteria.effect_index === undefined || asset.effect_index === criteria.effect_index),
-    ) ?? candidates[0]
+    candidates.find((asset) => assetMatchesSelectionCriteria(asset, criteria)) ?? candidates[0]
+  );
+}
+
+function findStrictAssetForSkillUsage(
+  runtimeVfxAssetSpec: RuntimeVfxAssetSpec,
+  slot: RuntimeVfxSlot,
+  usage: RuntimeVfxUsage,
+  criteria: AssetSelectionCriteria,
+): RuntimeVfxAssetEntry | undefined {
+  const skill = runtimeVfxAssetSpec.skills[slot];
+  if (!skill) {
+    return undefined;
+  }
+  return Object.values(skill.assets).find(
+    (asset) => asset.usage === usage && assetMatchesSelectionCriteria(asset, criteria),
+  );
+}
+
+function assetMatchesSelectionCriteria(
+  asset: RuntimeVfxAssetEntry,
+  criteria: AssetSelectionCriteria,
+): boolean {
+  return (
+    (criteria.trigger === undefined || asset.trigger === criteria.trigger) &&
+    (criteria.action === undefined || asset.action === criteria.action) &&
+    (criteria.effect_index === undefined || asset.effect_index === criteria.effect_index)
+  );
+}
+
+function hasSelectionCriteria(criteria: AssetSelectionCriteria): boolean {
+  return (
+    criteria.trigger !== undefined ||
+    criteria.action !== undefined ||
+    criteria.effect_index !== undefined
   );
 }
 
@@ -278,7 +309,8 @@ function updateProjectileComposition(
       );
     }
 
-    if (findAssetForSkillUsage(spec, projectile.skill_slot, "trail")) {
+    const projectileCriteria = { trigger: "on_cast", action: "spawn_projectile" };
+    if (findAssetForSkillUsage(spec, projectile.skill_slot, "trail", projectileCriteria)) {
       maybeSpawnTrail(sceneHandles, state, projectile, spec, textureCache, handles);
     }
   }
@@ -297,7 +329,16 @@ function updateZoneComposition(
   removeMissingProceduralPersistentInstances(sceneHandles, handles, "procedural:zone_ring:", activeIds);
 
   for (const zone of state.active_zones) {
-    const asset = findAssetForSkillUsage(spec, zone.skill_slot, "ground_decal");
+    const zoneCriteria = zone.source_action
+      ? {
+          trigger: zone.source_trigger,
+          action: zone.source_action,
+          effect_index: zone.effect_index,
+        }
+      : { action: "spawn_zone" };
+    const asset = findAssetForSkillUsage(spec, zone.skill_slot, "ground_decal", {
+      ...zoneCriteria,
+    });
     if (!asset) {
       continue;
     }
@@ -366,7 +407,9 @@ function updateAuraComposition(
   const desiredAuraIds = new Set<string>();
 
   for (const buff of state.buffs) {
-    const asset = findAssetForSkillUsage(spec, buff.skill_slot, "aura");
+    const asset = findAssetForSkillUsage(spec, buff.skill_slot, "aura", {
+      trigger: "on_cast",
+    });
     if (!asset) {
       continue;
     }
@@ -471,7 +514,13 @@ function updateSummonComposition(
   removeMissingProceduralPersistentInstances(sceneHandles, handles, "procedural:summon_sparks:", activeIds);
 
   for (const summon of state.summons) {
-    const bodyAsset = findAssetForSkillUsage(spec, summon.skill_slot, "summon_body");
+    const summonCriteria = { trigger: "on_cast", action: "summon" };
+    const bodyAsset = findAssetForSkillUsage(
+      spec,
+      summon.skill_slot,
+      "summon_body",
+      summonCriteria,
+    );
     const bodyTexture = bodyAsset ? textureCache.get(bodyAsset.path) ?? undefined : undefined;
     const bodyInstance = upsertPersistentInstance({
       sceneHandles,
@@ -495,7 +544,7 @@ function updateSummonComposition(
       setFallbackSummonBodyVisible(fallback, !bodyInstance);
     }
 
-    const auraAsset = findAssetForSkillUsage(spec, summon.skill_slot, "aura");
+    const auraAsset = findAssetForSkillUsage(spec, summon.skill_slot, "aura", summonCriteria);
     const auraTexture = auraAsset ? textureCache.get(auraAsset.path) ?? undefined : undefined;
     upsertPersistentInstance({
       sceneHandles,
@@ -518,6 +567,7 @@ function updateSummonComposition(
       spec,
       summon.skill_slot,
       "ground_decal",
+      summonCriteria,
     );
     const groundDecalTexture = groundDecalAsset
       ? textureCache.get(groundDecalAsset.path) ?? undefined
@@ -628,7 +678,9 @@ function updateImpactComposition(
           x: enemy.position.x,
           y: 0.65,
           z: enemy.position.z,
-        }, radius, eventKey);
+        }, radius, eventKey, ["hit_flash", "impact"], {
+          trigger: "on_projectile_hit",
+        });
         if (!handled) {
           continue;
         }
@@ -636,8 +688,19 @@ function updateImpactComposition(
     } else if (event.type === "zone_tick") {
       const zone = state.active_zones.find((candidate) => candidate.id === event.zone_id);
       const slot = zone?.skill_slot;
-      if (slot === "R" && zone) {
-        const handled = spawnImpact(sceneHandles, textureCache, handles, spec, slot, zonePosition(zone), zone.radius, eventKey);
+      if (slot && zone) {
+        const handled = spawnImpact(
+          sceneHandles,
+          textureCache,
+          handles,
+          spec,
+          slot,
+          zonePosition(zone),
+          zone.radius,
+          eventKey,
+          ["zone_tick", "status_loop", "burn_loop", "poison_cloud", "impact"],
+          { trigger: "on_zone_tick", action: zone.source_action },
+        );
         if (!handled) {
           continue;
         }
@@ -658,6 +721,7 @@ function updateImpactComposition(
         position,
         event.radius,
         `${eventKey}:decal`,
+        { trigger: "on_cast" },
       );
       const impactHandled = spawnImpact(
         sceneHandles,
@@ -668,6 +732,8 @@ function updateImpactComposition(
         { ...position, y: 0.65 },
         event.radius,
         `${eventKey}:impact`,
+        ["cast_flash", "impact"],
+        { trigger: "on_cast" },
       );
       if (!decalHandled || !impactHandled) {
         continue;
@@ -684,6 +750,8 @@ function updateImpactComposition(
           summonBodyPosition(summon),
           summon.radius,
           `${eventKey}:spawn`,
+          ["summon_spawn", "cast_flash", "impact"],
+          { trigger: "on_cast", action: "summon" },
         );
         if (!handled) {
           continue;
@@ -700,6 +768,7 @@ function updateImpactComposition(
         event.radius,
         eventKey,
         usagePreferencesForVfxEvent(event.usage),
+        getVfxEventCriteria(event),
       );
       if (!handled) {
         continue;
@@ -718,7 +787,10 @@ function maybeSpawnTrail(
   textureCache: RuntimeTextureCache,
   handles: TextureVfxHandles,
 ): void {
-  const asset = findAssetForSkillUsage(spec, projectile.skill_slot, "trail");
+  const asset = findAssetForSkillUsage(spec, projectile.skill_slot, "trail", {
+    trigger: "on_cast",
+    action: "spawn_projectile",
+  });
   if (!asset) {
     return;
   }
@@ -781,8 +853,9 @@ function spawnImpact(
   radius: number | undefined,
   eventKey: string,
   preferredUsages: RuntimeVfxUsage[] = ["hit_flash", "impact"],
+  criteria: AssetSelectionCriteria = {},
 ): boolean {
-  const asset = findFirstAssetForUsages(spec, slot, preferredUsages);
+  const asset = findFirstAssetForUsages(spec, slot, preferredUsages, criteria);
   if (!asset) {
     return true;
   }
@@ -822,9 +895,19 @@ function findFirstAssetForUsages(
   spec: RuntimeVfxAssetSpec,
   slot: RuntimeVfxSlot,
   usages: RuntimeVfxUsage[],
+  criteria: AssetSelectionCriteria = {},
 ): RuntimeVfxAssetEntry | undefined {
+  if (hasSelectionCriteria(criteria)) {
+    for (const usage of usages) {
+      const asset = findStrictAssetForSkillUsage(spec, slot, usage, criteria);
+      if (asset) {
+        return asset;
+      }
+    }
+  }
+
   for (const usage of usages) {
-    const asset = findAssetForSkillUsage(spec, slot, usage);
+    const asset = findAssetForSkillUsage(spec, slot, usage, criteria);
     if (asset) {
       return asset;
     }
@@ -833,16 +916,43 @@ function findFirstAssetForUsages(
 }
 
 function usagePreferencesForVfxEvent(usage: string): RuntimeVfxUsage[] {
-  if (usage === "hit_flash") {
-    return ["hit_flash", "impact"];
+  switch (usage) {
+    case "hit_flash":
+      return ["hit_flash", "impact"];
+    case "burn_loop":
+      return ["burn_loop", "status_loop", "hit_flash", "impact"];
+    case "poison_cloud":
+      return ["poison_cloud", "status_loop", "hit_flash", "impact"];
+    case "mark_sigil":
+    case "mark_sigial":
+      return ["mark_sigil", "mark_sigial", "status_loop", "hit_flash", "impact"];
+    case "stun_stars":
+      return ["stun_stars", "status_loop", "hit_flash", "impact"];
+    case "status_loop":
+      return ["status_loop", "burn_loop", "poison_cloud", "mark_sigil", "stun_stars", "hit_flash", "impact"];
+    case "summon_spawn":
+      return ["summon_spawn", "cast_flash", "impact"];
+    case "summon_expire":
+      return ["summon_expire", "impact", "hit_flash"];
+    case "cast_flash":
+      return ["cast_flash", "impact"];
+    case "cast_circle":
+      return ["cast_circle", "ground_decal", "impact"];
+    case "zone_tick":
+      return ["zone_tick", "status_loop", "burn_loop", "poison_cloud", "impact"];
+    case "impact":
+      return ["impact", "hit_flash"];
+    default:
+      return ["hit_flash", "impact"];
   }
-  if (usage === "status_loop") {
-    return ["status_loop", "burn_loop", "poison_cloud", "hit_flash", "impact"];
-  }
-  if (usage === "impact") {
-    return ["impact", "hit_flash"];
-  }
-  return ["hit_flash", "impact"];
+}
+
+function getVfxEventCriteria(event: Extract<GameEvent, { type: "vfx_event" }>): AssetSelectionCriteria {
+  return {
+    trigger: event.source_trigger,
+    action: event.source_action,
+    effect_index: event.effect_index,
+  };
 }
 
 function spawnTransientGroundDecal(
@@ -854,8 +964,9 @@ function spawnTransientGroundDecal(
   position: { x: number; y: number; z: number },
   radius: number | undefined,
   eventKey: string,
+  criteria: AssetSelectionCriteria = {},
 ): boolean {
-  const asset = findAssetForSkillUsage(spec, slot, "ground_decal");
+  const asset = findAssetForSkillUsage(spec, slot, "ground_decal", criteria);
   if (!asset) {
     return true;
   }

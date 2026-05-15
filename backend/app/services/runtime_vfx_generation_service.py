@@ -22,10 +22,8 @@ from app.storage.file_storage import (
 
 
 USAGE_PRIORITY = {
-    "cast_flash": 0,
     "projectile": 0,
     "ground_decal": 1,
-    "cast_circle": 1,
     "zone_tick": 1,
     "impact": 2,
     "hit_flash": 2,
@@ -41,6 +39,8 @@ USAGE_PRIORITY = {
     "stun_stars": 3,
     "status_loop": 3,
     "trail": 4,
+    "cast_flash": 5,
+    "cast_circle": 5,
 }
 
 REQUIRED_USAGE_BY_SKILL_TYPE = {
@@ -119,6 +119,7 @@ DEFAULT_DURATION_BY_USAGE = {
 }
 
 MIN_ATLAS_SIZE = 1024
+MAX_TEXTURES_PER_ATLAS = 9
 
 
 @dataclass(frozen=True)
@@ -193,38 +194,53 @@ class RuntimeVfxGenerationService:
 
         atlas_width = max(width, MIN_ATLAS_SIZE)
         atlas_height = max(height, MIN_ATLAS_SIZE)
-        grid = _atlas_grid(len(selected))
-        atlas_path = output_dir / "_runtime_vfx_atlas.png"
+        selected_batches = _chunk_selected_prompts(selected, MAX_TEXTURES_PER_ATLAS)
+        atlas_paths: list[Path] = []
+        cell_boxes_by_asset_key: dict[tuple[str, str], AtlasCellBox] = {}
 
-        try:
-            self.image_client.generate_image(
-                prompt=_build_atlas_prompt(selected, req.transparent_background),
-                negative_prompt=_build_atlas_negative_prompt(),
-                save_path=str(atlas_path),
-                width=atlas_width,
-                height=atlas_height,
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                f"Runtime VFX texture generation failed: atlas generation failed: {exc}"
-            ) from exc
-
-        try:
-            _crop_atlas_textures(
-                atlas_path=atlas_path,
-                selected=selected,
+        for batch_index, selected_batch in enumerate(selected_batches):
+            grid = _atlas_grid(len(selected_batch))
+            atlas_path = _atlas_path_for_batch(
                 output_dir=output_dir,
-                grid=grid,
+                batch_index=batch_index,
+                batch_count=len(selected_batches),
             )
-        except Exception as exc:
-            raise RuntimeError(f"Runtime VFX atlas slicing failed: {exc}") from exc
+            atlas_paths.append(atlas_path)
 
-        for index, selected_prompt in enumerate(selected):
+            try:
+                self.image_client.generate_image(
+                    prompt=_build_atlas_prompt(selected_batch, req.transparent_background),
+                    negative_prompt=_build_atlas_negative_prompt(),
+                    save_path=str(atlas_path),
+                    width=atlas_width,
+                    height=atlas_height,
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Runtime VFX texture generation failed: atlas generation failed: {exc}"
+                ) from exc
+
+            try:
+                _crop_atlas_textures(
+                    atlas_path=atlas_path,
+                    selected=selected_batch,
+                    output_dir=output_dir,
+                    grid=grid,
+                )
+            except Exception as exc:
+                raise RuntimeError(f"Runtime VFX atlas slicing failed: {exc}") from exc
+
+            for cell_index, selected_prompt in enumerate(selected_batch):
+                cell_boxes_by_asset_key[
+                    (selected_prompt.item.slot, selected_prompt.asset_key)
+                ] = _atlas_cell_box(cell_index, atlas_width, atlas_height, grid)
+
+        for selected_prompt in selected:
             item = selected_prompt.item
             safe_asset_key = sanitize_file_name(selected_prompt.asset_key)
             file_name = f"{item.slot}_{safe_asset_key}.png"
             asset_path = f"{asset_base_path}/{file_name}"
-            cell_box = _atlas_cell_box(index, atlas_width, atlas_height, grid)
+            cell_box = cell_boxes_by_asset_key[(item.slot, selected_prompt.asset_key)]
 
             generated_assets.append(
                 RuntimeVfxGeneratedAsset(
@@ -272,6 +288,13 @@ class RuntimeVfxGenerationService:
                 },
             }
         )
+        _delete_stale_runtime_vfx_files(
+            output_dir=output_dir,
+            keep_file_names={
+                Path(asset.path).name for asset in generated_assets
+            }
+            | {atlas_path.name for atlas_path in atlas_paths},
+        )
 
         return RuntimeVfxGenerationResponse(
             runtime_vfx_asset_spec=runtime_vfx_asset_spec,
@@ -294,16 +317,17 @@ def select_prompt_items(
         if not slot_items:
             continue
         skill_type = slot_items[0].skill_type
-        required_item = _first_required_item(slot_items, skill_type)
-        if required_item is None:
-            continue
-        if len(selected) >= max_textures:
-            raise RuntimeError(
-                "max_textures is too low to generate the minimum valid RuntimeVfxAssetSpec"
-            )
-        required_key = _asset_key_for_prompt_item(required_item)
-        selected.append(SelectedPrompt(required_item, required_key))
-        selected_ids.add((required_item.slot, required_key))
+        for required_item in _minimum_required_items(slot_items, skill_type):
+            required_key = _asset_key_for_prompt_item(required_item)
+            required_id = (required_item.slot, required_key)
+            if required_id in selected_ids:
+                continue
+            if len(selected) >= max_textures:
+                raise RuntimeError(
+                    "max_textures is too low to generate the minimum valid RuntimeVfxAssetSpec"
+                )
+            selected.append(SelectedPrompt(required_item, required_key))
+            selected_ids.add(required_id)
 
     remaining = [
         item
@@ -342,6 +366,72 @@ def _first_required_item(
             if item.usage == usage:
                 return item
     return None
+
+
+def _minimum_required_items(
+    items: list[RuntimeVfxPromptItem],
+    skill_type: str,
+) -> list[RuntimeVfxPromptItem]:
+    required: list[RuntimeVfxPromptItem] = []
+    primary = _first_required_item(items, skill_type)
+    if primary is not None:
+        required.append(primary)
+
+    for item in items:
+        if _is_stage_critical_item(item):
+            required.append(item)
+
+    return _dedupe_prompt_items(required)
+
+
+def _is_stage_critical_item(item: RuntimeVfxPromptItem) -> bool:
+    if item.action == "spawn_zone" and item.usage in {
+        "ground_decal",
+        "zone_tick",
+        "burn_loop",
+        "poison_cloud",
+        "status_loop",
+    }:
+        return True
+    if item.action == "spawn_vfx_event" and item.usage == "hit_flash":
+        return True
+    if item.action == "apply_status" and item.usage in {
+        "burn_loop",
+        "poison_cloud",
+        "mark_sigil",
+        "mark_sigial",
+        "stun_stars",
+        "status_loop",
+    }:
+        return True
+    if item.trigger in {"on_zone_tick", "on_status_tick"} and item.usage in {
+        "zone_tick",
+        "burn_loop",
+        "poison_cloud",
+        "status_loop",
+    }:
+        return True
+    if item.trigger in {"on_summon_expire", "on_summon_death"} and item.usage in {
+        "summon_expire",
+        "hit_flash",
+        "ground_decal",
+    }:
+        return True
+    return False
+
+
+def _dedupe_prompt_items(
+    items: list[RuntimeVfxPromptItem],
+) -> list[RuntimeVfxPromptItem]:
+    seen: set[tuple[str, str]] = set()
+    result: list[RuntimeVfxPromptItem] = []
+    for item in items:
+        key = (item.slot, _asset_key_for_prompt_item(item))
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(item)
+    return result
 
 
 def _asset_key_for_prompt_item(item: RuntimeVfxPromptItem) -> str:
@@ -399,6 +489,25 @@ def _atlas_grid(item_count: int) -> AtlasGrid:
     columns = 4
     rows = (item_count + columns - 1) // columns
     return AtlasGrid(columns=columns, rows=rows)
+
+
+def _chunk_selected_prompts(
+    selected: list[SelectedPrompt],
+    batch_size: int,
+) -> list[list[SelectedPrompt]]:
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    return [selected[index : index + batch_size] for index in range(0, len(selected), batch_size)]
+
+
+def _atlas_path_for_batch(
+    output_dir: Path,
+    batch_index: int,
+    batch_count: int,
+) -> Path:
+    if batch_count <= 1:
+        return output_dir / "_runtime_vfx_atlas.png"
+    return output_dir / f"_runtime_vfx_atlas_{batch_index + 1}.png"
 
 
 def _build_atlas_prompt(
@@ -486,6 +595,20 @@ def _crop_atlas_textures(
             texture_path = output_dir / file_name
             texture.save(texture_path, format="PNG")
             cleanup_runtime_vfx_texture(str(texture_path))
+
+
+def _delete_stale_runtime_vfx_files(output_dir: Path, keep_file_names: set[str]) -> None:
+    resolved_output_dir = output_dir.resolve()
+    for file_path in resolved_output_dir.glob("*.png"):
+        resolved_file = file_path.resolve()
+        if not resolved_file.is_relative_to(resolved_output_dir):
+            continue
+        if resolved_file.name in keep_file_names:
+            continue
+        try:
+            resolved_file.unlink()
+        except OSError:
+            continue
 
 
 def _atlas_cell_box(

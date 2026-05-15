@@ -34,11 +34,11 @@ export function executeSkillEffects(
   context: SkillEffectContext,
 ): GameEvent[] {
   const events: GameEvent[] = [];
-  for (const effect of effects) {
+  for (const [effectIndex, effect] of effects.entries()) {
     if (effect.trigger !== trigger) {
       continue;
     }
-    events.push(...executeSkillEffect(state, skill, effect, context));
+    events.push(...executeSkillEffect(state, skill, effect, context, effectIndex));
   }
   return events;
 }
@@ -48,6 +48,7 @@ export function executeSkillEffect(
   skill: SkillSpec,
   effect: SkillEffectSpec,
   context: SkillEffectContext,
+  effectIndex?: number,
 ): GameEvent[] {
   switch (effect.action) {
     case "damage":
@@ -57,13 +58,13 @@ export function executeSkillEffect(
     case "apply_status":
       return executeApplyStatus(state, skill, effect, context);
     case "spawn_zone":
-      return executeSpawnZone(state, skill, effect, context);
+      return executeSpawnZone(state, skill, effect, context, effectIndex);
     case "summon":
       return executeSummon(state, skill, effect, context);
     case "spawn_projectile":
       return executeSpawnProjectile(state, skill, effect, context);
     case "spawn_vfx_event":
-      return executeSpawnVfxEvent(state, skill, effect, context);
+      return executeSpawnVfxEvent(state, skill, effect, context, effectIndex);
   }
 }
 
@@ -143,6 +144,7 @@ function executeSpawnZone(
   skill: SkillSpec,
   effect: SkillEffectSpec,
   context: SkillEffectContext,
+  effectIndex?: number,
 ): GameEvent[] {
   const center = resolvePositionTarget(state, effect, context);
   if (!center) {
@@ -159,6 +161,9 @@ function executeSpawnZone(
     tick_timer: effect.tick_interval ?? skill.tick_interval ?? 1,
     status_effects: effect.status_effects ?? skill.status_effects ?? [],
     effects: getSkillEffects(skill),
+    source_trigger: effect.trigger,
+    source_action: effect.action,
+    effect_index: effectIndex,
     is_alive: true,
   };
   state.active_zones.push(zone);
@@ -238,6 +243,7 @@ function executeSpawnVfxEvent(
   skill: SkillSpec,
   effect: SkillEffectSpec,
   context: SkillEffectContext,
+  effectIndex?: number,
 ): GameEvent[] {
   const position = resolvePositionTarget(state, effect, context);
   if (!position) {
@@ -251,6 +257,8 @@ function executeSpawnVfxEvent(
       position: { ...position },
       radius: effect.radius ?? skill.radius,
       source_trigger: effect.trigger,
+      source_action: effect.action,
+      effect_index: effectIndex,
     },
   ];
 }

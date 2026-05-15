@@ -777,7 +777,7 @@ function HomePage() {
       const result = await generateRuntimeVfxAssets({
         playable_spec: playableSpec,
         runtime_vfx_asset_spec: null,
-        max_textures: 8,
+        max_textures: 20,
         image_size: "512x512",
         transparent_background: true,
         project_id: currentProjectId,

@@ -100,6 +100,9 @@ export type ZoneState = {
   tick_timer: number;
   status_effects: SkillStatusEffectSpec[];
   effects?: SkillEffectSpec[];
+  source_trigger?: string;
+  source_action?: string;
+  effect_index?: number;
   is_alive: boolean;
 };
 
@@ -160,6 +163,8 @@ export type GameEvent =
       position: Vec2;
       radius?: number;
       source_trigger?: string;
+      source_action?: string;
+      effect_index?: number;
     }
   | { type: "zone_spawned"; zone_id: string; skill_slot: SkillSlot }
   | { type: "zone_tick"; zone_id: string; hit_enemy_ids: string[] }

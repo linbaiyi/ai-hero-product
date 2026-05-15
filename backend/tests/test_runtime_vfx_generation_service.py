@@ -10,6 +10,7 @@ from app.clients.fake_image_client import FakeImageClient
 from app.schemas.runtime_vfx_generation_schema import RuntimeVfxGenerationRequest
 from app.schemas.runtime_vfx_schema import RuntimeVfxAssetSpec
 from app.services.runtime_vfx_generation_service import (
+    MAX_TEXTURES_PER_ATLAS,
     RuntimeVfxGenerationService,
     _atlas_cell_box,
     _atlas_grid,
@@ -283,6 +284,20 @@ def test_generated_files_are_written():
         assert output_file_for_asset_path(asset.path).exists()
 
 
+def test_regeneration_removes_stale_runtime_vfx_png_files():
+    project_id = "runtime_vfx_service_stale"
+    stale_dir = OUTPUT_ROOT / "runtime_vfx" / project_id
+    stale_dir.mkdir(parents=True, exist_ok=True)
+    stale_file = stale_dir / "old_unused_texture.png"
+    Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(stale_file)
+
+    response = generate(project_id=project_id)
+
+    assert not stale_file.exists()
+    for asset in response.generated_assets:
+        assert output_file_for_asset_path(asset.path).exists()
+
+
 def test_generated_files_have_transparent_alpha_after_cleanup():
     response = generate(project_id="runtime_vfx_service_alpha")
 
@@ -310,6 +325,31 @@ def test_generation_uses_one_atlas_image_request():
         assert output_file_for_asset_path(asset.path).exists()
         image = Image.open(output_file_for_asset_path(asset.path)).convert("RGBA")
         assert image.getchannel("A").getextrema()[0] == 0
+
+
+def test_generation_splits_more_than_nine_textures_into_multiple_atlases():
+    image_client = CountingImageClient()
+    service = RuntimeVfxGenerationService(image_client=image_client)
+
+    response = service.generate(
+        RuntimeVfxGenerationRequest.model_validate(
+            effect_chain_request_payload(project_id="runtime_vfx_service_multi_atlas")
+        )
+    )
+
+    expected_calls = (len(response.generated_assets) + MAX_TEXTURES_PER_ATLAS - 1) // MAX_TEXTURES_PER_ATLAS
+    assert len(response.generated_assets) > MAX_TEXTURES_PER_ATLAS
+    assert len(image_client.calls) == expected_calls
+    assert "_runtime_vfx_atlas_1.png" in str(image_client.calls[0]["save_path"])
+    assert "_runtime_vfx_atlas_2.png" in str(image_client.calls[1]["save_path"])
+    assert all(call["width"] == 1024 and call["height"] == 1024 for call in image_client.calls)
+    assert "3 by 3 grid" in str(image_client.calls[0]["prompt"])
+    for asset in response.generated_assets:
+        assert asset.width is not None
+        assert asset.height is not None
+        assert asset.width >= 341
+        assert asset.height >= 341
+        assert output_file_for_asset_path(asset.path).exists()
 
 
 def test_atlas_cell_boxes_cover_1024_canvas_without_lost_edge_pixels():
@@ -426,6 +466,30 @@ def test_spawn_vfx_event_generates_hit_flash_asset():
     assert "hit_flash_projectile_hit_spawn_vfx_event_2" in q_assets
     assert q_assets["hit_flash_projectile_hit_spawn_vfx_event_2"].usage == "hit_flash"
     assert output_file_for_asset_path(q_assets["hit_flash_projectile_hit_spawn_vfx_event_2"].path).exists()
+
+
+def test_projectile_hit_zone_assets_are_prioritized_before_cast_flash_when_limited():
+    payload = effect_chain_request_payload(project_id="runtime_vfx_service_limited_hit_zone")
+    payload["max_textures"] = 8
+    payload["playable_spec"]["skills"][0]["effects"].append(
+        {
+            "trigger": "on_projectile_hit",
+            "action": "spawn_vfx_event",
+            "target": "projectile_position",
+            "radius": 1.5,
+        }
+    )
+    service = RuntimeVfxGenerationService(image_client=FakeImageClient())
+
+    response = service.generate(RuntimeVfxGenerationRequest.model_validate(payload))
+    q_assets = response.runtime_vfx_asset_spec.skills["Q"].assets
+
+    assert "projectile_cast_spawn_projectile_0" in q_assets
+    assert "ground_decal_projectile_hit_spawn_zone_1" in q_assets
+    assert "zone_tick_zone_tick_spawn_zone_1" in q_assets
+    assert "burn_loop_projectile_hit_spawn_zone_1" in q_assets
+    assert "hit_flash_projectile_hit_spawn_vfx_event_2" in q_assets
+    assert "cast_flash_cast_spawn_projectile_0" not in q_assets
 
 
 def test_invalid_playable_spec_fails():
