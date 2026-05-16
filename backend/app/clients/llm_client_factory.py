@@ -17,7 +17,7 @@ def create_llm_client() -> LLMClient:
             provider="openai",
             api_key=settings.llm_api_key,
             model=settings.llm_text_model,
-            base_url=None,
+            base_url=settings.llm_base_url or None,
             timeout=settings.llm_request_timeout,
             max_retries=settings.llm_max_retries,
         )

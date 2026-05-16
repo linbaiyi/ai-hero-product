@@ -17,7 +17,7 @@ def create_image_client() -> ImageClient:
             provider="openai",
             api_key=settings.image_api_key,
             model=settings.image_model,
-            base_url=None,
+            base_url=settings.image_base_url or None,
             timeout=settings.image_request_timeout,
             max_retries=settings.image_max_retries,
         )

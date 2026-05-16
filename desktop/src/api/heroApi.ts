@@ -1,7 +1,5 @@
 import type { HeroDesign, HeroGenerateRequest } from "../types/project";
-
-export const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR = "无法连接英雄生成服务，请确认后端已启动。";
 const GENERATION_ERROR = "英雄方案生成失败，请检查输入或稍后重试。";
@@ -22,7 +20,7 @@ export async function generateHeroDesign(
   }
 
   if (!response.ok) {
-    throw new Error(GENERATION_ERROR);
+    throw new Error(await readBackendErrorMessage(response, GENERATION_ERROR));
   }
 
   return (await response.json()) as HeroDesign;

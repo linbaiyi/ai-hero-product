@@ -6,9 +6,7 @@ import type {
   ProjectSkillEditRequest,
   ProjectSkillEditResult,
 } from "../types/project";
-
-export const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR =
   "无法连接本地后端服务，请确认 FastAPI 后端已启动。";
@@ -32,22 +30,9 @@ async function requestJson<T>(
     }
 
     if (!response.ok) {
-      let serverMessage: string | undefined;
-      try {
-        const errorBody = await response.json();
-        const detail = errorBody?.detail;
-        serverMessage =
-          typeof detail?.message === "string"
-            ? detail.message
-            : typeof detail === "string"
-              ? detail
-              : typeof errorBody?.message === "string"
-                ? errorBody.message
-                : undefined;
-      } catch {
-        serverMessage = undefined;
-      }
-      throw new ProjectApiError(serverMessage ?? fallbackMessage);
+      throw new ProjectApiError(
+        await readBackendErrorMessage(response, fallbackMessage),
+      );
     }
 
     return (await response.json()) as T;

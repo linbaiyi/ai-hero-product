@@ -3,12 +3,12 @@ import type {
   ImageGenerationRequest,
   ImageGenerationResult,
 } from "../types/project";
-
-export const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR = "无法连接图片生成服务，请确认后端已启动。";
 const GENERATION_ERROR = "技能特效图片生成失败，请稍后重试。";
+
+class ImageGenerationApiError extends Error {}
 
 export async function generateImage(
   request: ImageGenerationRequest,
@@ -23,12 +23,14 @@ export async function generateImage(
     });
 
     if (!response.ok) {
-      throw new Error(GENERATION_ERROR);
+      throw new ImageGenerationApiError(
+        await readBackendErrorMessage(response, GENERATION_ERROR),
+      );
     }
 
     return (await response.json()) as ImageGenerationResult;
   } catch (error) {
-    if (error instanceof Error && error.message === GENERATION_ERROR) {
+    if (error instanceof ImageGenerationApiError) {
       throw error;
     }
 
@@ -52,12 +54,14 @@ export async function generateImagesBatch(
     );
 
     if (!response.ok) {
-      throw new Error(GENERATION_ERROR);
+      throw new ImageGenerationApiError(
+        await readBackendErrorMessage(response, GENERATION_ERROR),
+      );
     }
 
     return (await response.json()) as ImageGenerationResult[];
   } catch (error) {
-    if (error instanceof Error && error.message === GENERATION_ERROR) {
+    if (error instanceof ImageGenerationApiError) {
       throw error;
     }
 

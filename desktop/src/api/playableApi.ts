@@ -1,7 +1,7 @@
 import { normalizePlayableSpec } from "../game-demo/specs/normalizePlayableSpec";
 import type { HeroPlayableSpec } from "../game-demo/specs/playableSpecTypes";
 import { validatePlayableSpec } from "../game-demo/specs/playableSpecSchema";
-import { BACKEND_BASE_URL } from "./backendApi";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR =
   "无法连接试玩配置生成服务，请确认后端已启动。";
@@ -49,7 +49,7 @@ export async function generatePlayableSpec(
   }
 
   if (!response.ok) {
-    throw new Error(GENERATION_ERROR);
+    throw new Error(await readBackendErrorMessage(response, GENERATION_ERROR));
   }
 
   const data = (await response.json()) as { playable_spec?: unknown };
@@ -78,7 +78,7 @@ export async function validatePlayableSpecOnServer(
   }
 
   if (!response.ok) {
-    throw new Error(VALIDATION_ERROR);
+    throw new Error(await readBackendErrorMessage(response, VALIDATION_ERROR));
   }
 
   const data = (await response.json()) as ValidatePlayableSpecResponse;

@@ -1,7 +1,7 @@
 import { normalizeRuntimeVfxAssetSpec } from "../game-demo/vfx-assets/normalizeRuntimeVfxAssetSpec";
 import type { RuntimeVfxAssetSpec } from "../game-demo/vfx-assets/runtimeVfxTypes";
 import type { HeroPlayableSpec } from "../game-demo/specs/playableSpecTypes";
-import { BACKEND_BASE_URL } from "./backendApi";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR =
   "无法连接运行时贴图资产生成服务，请确认后端已启动。";
@@ -57,7 +57,7 @@ export async function generateRuntimeVfxAssets(
   }
 
   if (!response.ok) {
-    throw new Error(GENERATION_ERROR);
+    throw new Error(await readBackendErrorMessage(response, GENERATION_ERROR));
   }
 
   const data = (await response.json()) as {

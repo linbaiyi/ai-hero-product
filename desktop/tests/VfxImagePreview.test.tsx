@@ -47,7 +47,7 @@ describe("VfxImagePreview", () => {
     expect(screen.getByText("技能特效预览图")).toBeInTheDocument();
     expect(image).toHaveAttribute(
       "src",
-      "http://127.0.0.1:8000/api/files/outputs/images/desktop_123/skill_%E7%83%88%E7%84%B0%E5%86%B2%E5%87%BB.png",
+      "http://127.0.0.1:8001/api/files/outputs/images/desktop_123/skill_%E7%83%88%E7%84%B0%E5%86%B2%E5%87%BB.png",
     );
     expect(screen.getByText("skill_烈焰冲击.png")).toBeInTheDocument();
     expect(screen.getByText("512×512")).toBeInTheDocument();

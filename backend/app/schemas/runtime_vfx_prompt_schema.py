@@ -2,8 +2,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.hero_schema import HeroDesign
 from app.schemas.playable_schema import HeroPlayableSpec
+from app.schemas.request_schema import HeroGenerateRequest
 from app.schemas.runtime_vfx_schema import RuntimeVfxAssetSpec
+from app.schemas.vfx_schema import VfxDesign
 
 
 RuntimeVfxPromptUsage = Literal[
@@ -32,6 +35,10 @@ RuntimeVfxPromptUsage = Literal[
 class RuntimeVfxPromptRequest(BaseModel):
     playable_spec: HeroPlayableSpec
     runtime_vfx_asset_spec: RuntimeVfxAssetSpec | None = None
+    hero_design: HeroDesign | None = None
+    vfx_designs: list[VfxDesign] = Field(default_factory=list)
+    source_request: HeroGenerateRequest | None = None
+    element_theme: str | None = None
     style: str = "runtime_texture"
     transparent_background: bool = True
 
@@ -49,6 +56,27 @@ class RuntimeVfxPromptRequest(BaseModel):
             return None
         return RuntimeVfxAssetSpec.model_validate(value)
 
+    @field_validator("hero_design", mode="before")
+    @classmethod
+    def hero_design_must_be_valid(cls, value: Any) -> HeroDesign | None:
+        if value is None:
+            return None
+        return HeroDesign.model_validate(value)
+
+    @field_validator("vfx_designs", mode="before")
+    @classmethod
+    def vfx_designs_must_be_valid(cls, value: Any) -> list[VfxDesign]:
+        if value is None:
+            return []
+        return [VfxDesign.model_validate(item) for item in value]
+
+    @field_validator("source_request", mode="before")
+    @classmethod
+    def source_request_must_be_valid(cls, value: Any) -> HeroGenerateRequest | None:
+        if value is None:
+            return None
+        return HeroGenerateRequest.model_validate(value)
+
 
 class RuntimeVfxPromptItem(BaseModel):
     slot: Literal["Q", "W", "E", "R"]
@@ -61,6 +89,7 @@ class RuntimeVfxPromptItem(BaseModel):
     effect_index: int | None = None
     prompt: str
     negative_prompt: str | None = None
+    color_tint: str | None = None
     recommended_size: str = "512x512"
     transparent_background: bool = True
 

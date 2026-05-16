@@ -420,6 +420,66 @@ body {
     @apply flex flex-col gap-2 text-xs leading-5;
     color: var(--ue-text-secondary);
   }
+
+  .api-config-panel {
+    @apply max-w-6xl;
+  }
+
+  .api-config-grid {
+    @apply grid gap-3 xl:grid-cols-2;
+  }
+
+  .api-config-card {
+    @apply flex flex-col gap-4 rounded-md border p-4;
+    border-color: var(--ue-border-soft);
+    background: #111827;
+  }
+
+  .api-config-field {
+    @apply flex flex-col gap-1.5 text-xs font-semibold uppercase tracking-[0.12em];
+    color: var(--ue-text-muted);
+  }
+
+  .api-config-field input,
+  .api-config-field select {
+    @apply normal-case tracking-normal;
+  }
+
+  .api-config-check-row {
+    @apply flex items-center gap-2 rounded border px-3 py-2 text-sm;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-field);
+    color: var(--ue-text-secondary);
+  }
+
+  .api-config-check-row input {
+    accent-color: var(--ue-blue);
+  }
+
+  .api-config-button-row {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .api-config-model-picker {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .api-config-model-picker span {
+    @apply text-xs font-normal normal-case tracking-normal;
+    color: var(--ue-text-muted);
+  }
+
+  .api-config-probe-message {
+    @apply rounded border px-3 py-2 text-sm leading-6;
+    border-color: var(--ue-border-soft);
+    background: var(--ue-bg-field);
+  }
+
+  .api-config-actions {
+    @apply mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border p-3;
+    border-color: var(--ue-border);
+    background: var(--ue-bg-panel);
+  }
 }
 
 .dock-body > form,

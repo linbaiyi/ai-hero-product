@@ -1,7 +1,5 @@
 import type { BoardRenderRequest, BoardRenderResult } from "../types/project";
-
-export const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR = "无法连接设计板渲染服务，请确认后端已启动。";
 const GENERATION_ERROR = "技能特效设计板生成失败，请稍后重试。";
@@ -22,7 +20,9 @@ export async function renderVfxBoard(
     });
 
     if (!response.ok) {
-      throw new BoardRenderApiError(GENERATION_ERROR);
+      throw new BoardRenderApiError(
+        await readBackendErrorMessage(response, GENERATION_ERROR),
+      );
     }
 
     const result = (await response.json()) as BoardRenderResult;

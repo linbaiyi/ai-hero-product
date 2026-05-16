@@ -19,7 +19,11 @@ import {
 import { generateVfxBreakdownBatch } from "../src/api/vfxApi";
 import HomePage from "../src/pages/HomePage";
 
-vi.mock("../src/api/backendApi", () => ({ checkBackendHealth: vi.fn() }));
+vi.mock("../src/api/backendApi", () => ({
+  BACKEND_BASE_URL: "http://127.0.0.1:8001",
+  checkBackendHealth: vi.fn(),
+  readBackendErrorMessage: vi.fn(),
+}));
 vi.mock("../src/api/heroApi", () => ({ generateHeroDesign: vi.fn() }));
 vi.mock("../src/api/vfxApi", () => ({ generateVfxBreakdownBatch: vi.fn() }));
 vi.mock("../src/api/imagePromptApi", () => ({

@@ -28,6 +28,7 @@ import HeroResultPanel from "../components/HeroResultPanel";
 import ProjectHistoryPanel from "../components/ProjectHistoryPanel";
 import ProjectExportPanel from "../components/ProjectExportPanel";
 import ProjectSaveStatus from "../components/ProjectSaveStatus";
+import ProviderConfigPanel from "../components/ProviderConfigPanel";
 import VfxBreakdownPanel from "../components/VfxBreakdownPanel";
 import PlaytestView from "../game-demo/playtest/PlaytestView";
 import { normalizePlayableSpec } from "../game-demo/specs/normalizePlayableSpec";
@@ -1269,6 +1270,10 @@ function HomePage() {
                 projects={historyProjects}
               />
             </div>
+          </section>
+
+          <section className={viewClass("settings")} aria-label="API Settings">
+            {activeView === "settings" ? <ProviderConfigPanel /> : null}
           </section>
 
           <section className={viewClass("export")} aria-label="Export Package">

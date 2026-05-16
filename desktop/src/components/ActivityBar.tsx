@@ -3,6 +3,7 @@ export type ActivityView =
   | "blueprint"
   | "assets"
   | "projects"
+  | "settings"
   | "export"
   | "playtest";
 
@@ -21,6 +22,7 @@ const activityItems: Array<{
   { id: "blueprint", label: "方案", icon: "B", title: "Blueprint" },
   { id: "assets", label: "资产", icon: "A", title: "Assets" },
   { id: "projects", label: "项目", icon: "P", title: "Projects" },
+  { id: "settings", label: "API", icon: "K", title: "API Settings" },
   { id: "export", label: "导出", icon: "E", title: "Export" },
   { id: "playtest", label: "Play", icon: "T", title: "Playtest" },
 ];

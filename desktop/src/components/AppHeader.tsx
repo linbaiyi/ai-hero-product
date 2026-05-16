@@ -23,6 +23,7 @@ function AppHeader({
     { label: "Project", view: "projects" },
     { label: "Generate", view: "generate" },
     { label: "Assets", view: "assets" },
+    { label: "API", view: "settings" },
     { label: "Export", view: "export" },
     { label: "Help" },
   ];

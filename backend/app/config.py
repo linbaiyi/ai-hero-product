@@ -1,9 +1,19 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+
+def get_env_file_path() -> Path:
+    configured_path = os.getenv("APP_ENV_FILE")
+    if configured_path:
+        return Path(configured_path).resolve()
+
+    return Path(__file__).resolve().parents[1] / ".env"
+
+
+load_dotenv(dotenv_path=get_env_file_path())
 
 
 def _parse_cors_origins(value: str | None) -> list[str]:

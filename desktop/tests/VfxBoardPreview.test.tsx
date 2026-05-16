@@ -47,7 +47,7 @@ describe("VfxBoardPreview", () => {
     expect(screen.getByText("最终技能特效设计板")).toBeInTheDocument();
     expect(image).toHaveAttribute(
       "src",
-      "http://127.0.0.1:8000/api/files/outputs/boards/desktop_123/vfx_board.png",
+      "http://127.0.0.1:8001/api/files/outputs/boards/desktop_123/vfx_board.png",
     );
     expect(screen.getByText("vfx_board.png")).toBeInTheDocument();
     expect(screen.getByText("1600×2400")).toBeInTheDocument();

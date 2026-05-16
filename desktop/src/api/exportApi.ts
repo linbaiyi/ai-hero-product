@@ -2,9 +2,7 @@ import type {
   ExportProjectRequest,
   ExportProjectResult,
 } from "../types/project";
-
-export const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR = "无法连接项目导出服务，请确认后端已启动。";
 const EXPORT_ERROR = "项目导出失败，请稍后重试。";
@@ -29,7 +27,9 @@ export async function exportProject(
     );
 
     if (!response.ok) {
-      throw new ExportApiError(EXPORT_ERROR);
+      throw new ExportApiError(
+        await readBackendErrorMessage(response, EXPORT_ERROR),
+      );
     }
 
     const result = (await response.json()) as ExportProjectResult;
@@ -66,7 +66,7 @@ export async function saveProjectExportZip(
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(EXPORT_ERROR);
+    throw new Error(await readBackendErrorMessage(response, EXPORT_ERROR));
   }
 
   const data = await response.arrayBuffer();

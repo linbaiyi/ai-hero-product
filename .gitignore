@@ -27,3 +27,6 @@ desktop/release/
 Thumbs.db
 .vite/
 coverage/
+
+# Dev runtime temp scripts
+.dev-runtime/

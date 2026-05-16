@@ -2,12 +2,12 @@ import type {
   ImagePromptBatchRequest,
   ImagePromptResult,
 } from "../types/project";
-
-export const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR = "无法连接图像 Prompt 生成服务，请确认后端已启动。";
 const GENERATION_ERROR = "图像 Prompt 生成失败，请稍后重试。";
+
+class ImagePromptApiError extends Error {}
 
 export async function generateImagePromptBatch(
   request: ImagePromptBatchRequest,
@@ -25,12 +25,14 @@ export async function generateImagePromptBatch(
     );
 
     if (!response.ok) {
-      throw new Error(GENERATION_ERROR);
+      throw new ImagePromptApiError(
+        await readBackendErrorMessage(response, GENERATION_ERROR),
+      );
     }
 
     return (await response.json()) as ImagePromptResult[];
   } catch (error) {
-    if (error instanceof Error && error.message === GENERATION_ERROR) {
+    if (error instanceof ImagePromptApiError) {
       throw error;
     }
 

@@ -22,7 +22,11 @@ import { defaultRuntimeVfxAssetSpec } from "../src/game-demo/vfx-assets/defaultR
 import HomePage from "../src/pages/HomePage";
 import type { ProjectRecord } from "../src/types/project";
 
-vi.mock("../src/api/backendApi", () => ({ checkBackendHealth: vi.fn() }));
+vi.mock("../src/api/backendApi", () => ({
+  BACKEND_BASE_URL: "http://127.0.0.1:8001",
+  checkBackendHealth: vi.fn(),
+  readBackendErrorMessage: vi.fn(),
+}));
 vi.mock("../src/api/heroApi", () => ({ generateHeroDesign: vi.fn() }));
 vi.mock("../src/api/vfxApi", () => ({ generateVfxBreakdownBatch: vi.fn() }));
 vi.mock("../src/api/imagePromptApi", () => ({

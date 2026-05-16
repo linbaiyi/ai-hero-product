@@ -5,7 +5,7 @@ describe("buildBackendFileUrl", () => {
   it("builds backend file URL for output image path", () => {
     const url = buildBackendFileUrl("outputs/images/a.png");
 
-    expect(url).toBe("http://127.0.0.1:8000/api/files/outputs/images/a.png");
+    expect(url).toBe("http://127.0.0.1:8001/api/files/outputs/images/a.png");
   });
 
   it("encodes Chinese paths", () => {

@@ -150,6 +150,14 @@ def test_invalid_json_raises_value_error():
         client.generate_json("prompt", schema_name="hero_design")
 
 
+def test_json_wrapped_in_explanatory_text_is_parsed():
+    client = make_client(f"Here is the JSON:\n{hero_json()}\nDone.")
+
+    result = client.generate_json("prompt", schema_name="hero_design")
+
+    assert result["hero_name"] == "焚烬法皇"
+
+
 def test_schema_validation_failure_raises_value_error():
     client = make_client('{"hero_name": "missing fields"}')
 

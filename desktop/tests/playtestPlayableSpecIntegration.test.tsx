@@ -14,11 +14,13 @@ import type {
 } from "../src/types/project";
 
 vi.mock("../src/api/backendApi", () => ({
+  BACKEND_BASE_URL: "http://127.0.0.1:8001",
   checkBackendHealth: vi.fn().mockResolvedValue({
     status: "ok",
     service: "ai-game-hero-designer-backend",
     version: "0.1.0",
   }),
+  readBackendErrorMessage: vi.fn(),
 }));
 vi.mock("../src/api/heroApi", () => ({ generateHeroDesign: vi.fn() }));
 vi.mock("../src/api/vfxApi", () => ({ generateVfxBreakdownBatch: vi.fn() }));

@@ -30,28 +30,44 @@ class ApiLLMClient:
 
     def generate_json(self, prompt: str, schema_name: str | None = None) -> dict:
         schema_model = _schema_model_for_name(schema_name)
+        last_error: Exception | None = None
 
-        try:
-            if self.provider == "openai_compatible":
-                response = self._create_chat_completion(prompt, schema_name, schema_model)
-            else:
-                response = self._create_response(prompt, schema_name, schema_model)
-        except Exception as exc:
-            raise RuntimeError(f"真实大模型 API 调用失败：{exc}") from exc
+        for current_prompt in [prompt, _build_json_retry_prompt(prompt, schema_name)]:
+            try:
+                if self.provider == "openai_compatible":
+                    response = self._create_chat_completion(
+                        current_prompt,
+                        schema_name,
+                        schema_model,
+                    )
+                else:
+                    response = self._create_response(
+                        current_prompt,
+                        schema_name,
+                        schema_model,
+                    )
+            except Exception as exc:
+                raise RuntimeError(f"真实大模型 API 调用失败：{exc}") from exc
 
-        text = _extract_output_text(response)
-        if not text or not text.strip():
-            raise ValueError("大模型返回内容为空")
+            text = _extract_output_text(response)
+            if not text or not text.strip():
+                last_error = ValueError("大模型返回内容为空")
+                continue
 
-        try:
-            data = json.loads(_strip_code_fence(text.strip()))
-        except json.JSONDecodeError as exc:
-            raise ValueError("大模型返回的 JSON 无法解析") from exc
+            try:
+                data = json.loads(_extract_json_payload(text.strip()))
+            except json.JSONDecodeError as exc:
+                last_error = ValueError("大模型返回的 JSON 无法解析")
+                continue
 
-        try:
-            return schema_model.model_validate(data).model_dump()
-        except ValidationError as exc:
-            raise ValueError("大模型返回的 JSON 不符合目标 Schema") from exc
+            try:
+                return schema_model.model_validate(data).model_dump()
+            except ValidationError as exc:
+                last_error = ValueError("大模型返回的 JSON 不符合目标 Schema")
+
+        if isinstance(last_error, ValueError):
+            raise last_error
+        raise ValueError("大模型返回的 JSON 无法解析")
 
     def _client(self) -> Any:
         if self._openai_client is not None:
@@ -176,3 +192,56 @@ def _strip_code_fence(text: str) -> str:
             lines = lines[:-1]
         return "\n".join(lines).strip()
     return text
+
+
+def _build_json_retry_prompt(prompt: str, schema_name: str | None) -> str:
+    return (
+        f"{prompt}\n\n"
+        "The previous response may be rejected by strict JSON parsing. "
+        f"Return exactly one JSON object for schema {schema_name or 'json_schema'}. "
+        "Do not include Markdown, explanations, comments, extra wrapper objects, "
+        "or any fields not required by the schema. Start with { and end with }."
+    )
+
+
+def _extract_json_payload(text: str) -> str:
+    stripped = _strip_code_fence(text.strip())
+    if stripped.startswith("{") or stripped.startswith("["):
+        return stripped
+
+    start_candidates = [
+        index
+        for index in (stripped.find("{"), stripped.find("["))
+        if index >= 0
+    ]
+    if not start_candidates:
+        return stripped
+
+    start = min(start_candidates)
+    opening = stripped[start]
+    closing = "}" if opening == "{" else "]"
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for index in range(start, len(stripped)):
+        char = stripped[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == opening:
+            depth += 1
+        elif char == closing:
+            depth -= 1
+            if depth == 0:
+                return stripped[start : index + 1]
+
+    return stripped[start:]
