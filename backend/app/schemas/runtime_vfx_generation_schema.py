@@ -39,7 +39,7 @@ class RuntimeVfxGenerationRequest(BaseModel):
     vfx_designs: list[VfxDesign] = Field(default_factory=list)
     source_request: HeroGenerateRequest | None = None
     element_theme: str | None = None
-    max_textures: int = Field(default=20, ge=1, le=20)
+    max_textures: int = Field(default=99, ge=1, le=99)
     image_size: Literal["256x256", "512x512", "768x768", "1024x1024"] = "512x512"
     transparent_background: bool = True
     project_id: str | None = None

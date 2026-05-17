@@ -170,7 +170,297 @@ def apply_design_mechanic_mapping(
     spec = normalize_directional_area_skills(spec, hero_design)
     spec = prefer_summon_skill_when_requested(spec, hero_design)
     spec = add_status_effects_when_requested(spec, hero_design)
-    return ensure_hit_feedback_vfx_events(spec, hero_design)
+    spec = ensure_executable_effect_contracts(spec)
+    spec = ensure_hit_feedback_vfx_events(spec, hero_design)
+    return ensure_war3_ability_contracts(spec)
+
+
+def ensure_executable_effect_contracts(spec: dict[str, Any]) -> dict[str, Any]:
+    skills = spec.get("skills")
+    if not isinstance(skills, list):
+        return spec
+
+    for skill in skills:
+        if not isinstance(skill, dict):
+            continue
+        effects = skill.setdefault("effects", [])
+        if not isinstance(effects, list):
+            skill["effects"] = effects = []
+        for required_effect in _legacy_effects_for_skill(skill):
+            if not _has_equivalent_effect(effects, required_effect):
+                effects.append(required_effect)
+    return spec
+
+
+def _has_equivalent_effect(
+    effects: list[Any],
+    required_effect: dict[str, Any],
+) -> bool:
+    for effect in effects:
+        if not isinstance(effect, dict):
+            continue
+        if (
+            effect.get("trigger") == required_effect.get("trigger")
+            and effect.get("action") == required_effect.get("action")
+            and effect.get("target") == required_effect.get("target")
+        ):
+            return True
+    return False
+
+
+def ensure_war3_ability_contracts(spec: dict[str, Any]) -> dict[str, Any]:
+    skills = spec.get("skills")
+    if not isinstance(skills, list):
+        return spec
+
+    for skill in skills:
+        if not isinstance(skill, dict):
+            continue
+        existing = skill.get("ability_contract")
+        generated = _war3_contract_for_skill(skill)
+        if isinstance(existing, dict):
+            skill["ability_contract"] = _merge_war3_contract(existing, generated)
+        else:
+            skill["ability_contract"] = generated
+    return spec
+
+
+def _merge_war3_contract(
+    existing: dict[str, Any],
+    generated: dict[str, Any],
+) -> dict[str, Any]:
+    merged = dict(generated)
+    for key, value in existing.items():
+        if value not in (None, "", [], {}):
+            merged[key] = value
+
+    for nested_key in ("target_filters", "missile", "area", "buff", "summon"):
+        generated_nested = generated.get(nested_key)
+        existing_nested = existing.get(nested_key)
+        if isinstance(generated_nested, dict) and isinstance(existing_nested, dict):
+            nested = dict(generated_nested)
+            nested.update(
+                {
+                    key: value
+                    for key, value in existing_nested.items()
+                    if value not in (None, "", [], {})
+                }
+            )
+            merged[nested_key] = nested
+
+    if not merged.get("levels"):
+        merged["levels"] = generated["levels"]
+    if not merged.get("art_bindings"):
+        merged["art_bindings"] = generated["art_bindings"]
+    if not merged.get("effect_kinds"):
+        merged["effect_kinds"] = generated["effect_kinds"]
+    return merged
+
+
+def _war3_contract_for_skill(skill: dict[str, Any]) -> dict[str, Any]:
+    skill_type = str(skill.get("type", "aoe"))
+    slot = str(skill.get("slot", "Q"))
+    name = str(skill.get("name") or f"{slot} Skill")
+    status_effects = skill.get("status_effects")
+    effects = skill.get("effects")
+
+    cast_type_by_skill = {
+        "projectile": "point_target",
+        "aoe": "area_target",
+        "aoe_dot": "area_target",
+        "dash": "point_target",
+        "buff": "self",
+        "summon": "point_target",
+    }
+    target_by_skill = {
+        "projectile": "point",
+        "aoe": "area",
+        "aoe_dot": "area",
+        "dash": "point",
+        "buff": "self",
+        "summon": "point",
+    }
+    effect_kinds = _war3_effect_kinds_for_skill(skill, effects, status_effects)
+
+    return {
+        "ability_id": f"{slot.lower()}_{_slugify(name)}",
+        "base_order": _war3_order_for_skill_type(skill_type, slot),
+        "cast_type": cast_type_by_skill.get(skill_type, "area_target"),
+        "primary_target": target_by_skill.get(skill_type, "area"),
+        "target_filters": _war3_target_filters_for_skill_type(skill_type),
+        "effect_kinds": effect_kinds,
+        "levels": [
+            {
+                "level": 1,
+                "cooldown": _number_or_default(skill.get("cooldown"), 0),
+                "resource_cost": _number_or_default(skill.get("resource_cost"), 0),
+                "damage": _optional_number(skill.get("damage")),
+                "area": _optional_number(skill.get("radius")),
+                "duration": _optional_number(skill.get("duration")),
+                "notes": _war3_level_notes(skill),
+            }
+        ],
+        "missile": {
+            "enabled": skill_type == "projectile"
+            or _effects_include_action(effects, "spawn_projectile"),
+            "speed": _optional_number(skill.get("speed")),
+            "arc": 0.0,
+            "homing": False,
+        },
+        "area": {
+            "enabled": skill_type in {"aoe", "aoe_dot"}
+            or _effects_include_action(effects, "aoe_damage")
+            or _effects_include_action(effects, "spawn_zone"),
+            "radius": _optional_number(skill.get("radius")),
+            "duration": _optional_number(skill.get("duration")),
+            "tick_interval": _optional_number(skill.get("tick_interval")),
+        },
+        "buff": _war3_buff_contract(status_effects),
+        "summon": {
+            "enabled": skill_type == "summon" or _effects_include_action(effects, "summon"),
+            "unit_name": f"{name} Unit" if skill_type == "summon" else None,
+            "duration": _optional_number(skill.get("duration")),
+            "attack_damage": _optional_number(skill.get("damage")),
+            "attack_range": _optional_number(skill.get("range")),
+        },
+        "art_bindings": _war3_art_bindings_for_skill(skill, effects),
+        "unsupported_notes": _war3_unsupported_notes(skill),
+    }
+
+
+def _war3_order_for_skill_type(skill_type: str, slot: str) -> str:
+    orders = {
+        "projectile": "acidbomb",
+        "aoe": "flamestrike",
+        "aoe_dot": "blizzard",
+        "dash": "blink",
+        "buff": "innerfire",
+        "summon": "summonwaterelemental",
+    }
+    return orders.get(skill_type, f"channel_{slot.lower()}")
+
+
+def _war3_target_filters_for_skill_type(skill_type: str) -> dict[str, Any]:
+    if skill_type == "buff":
+        return {
+            "allowed": ["self"],
+            "enemy": False,
+            "ally": False,
+            "self": True,
+            "ground": False,
+            "summoned": False,
+        }
+    if skill_type == "summon":
+        return {
+            "allowed": ["point", "summoned_unit"],
+            "enemy": False,
+            "ally": False,
+            "self": False,
+            "ground": True,
+            "summoned": True,
+        }
+    if skill_type in {"aoe", "aoe_dot"}:
+        return {
+            "allowed": ["point", "area", "enemy_unit"],
+            "enemy": True,
+            "ally": False,
+            "self": False,
+            "ground": True,
+            "summoned": False,
+        }
+    return {
+        "allowed": ["point", "enemy_unit"],
+        "enemy": True,
+        "ally": False,
+        "self": False,
+        "ground": True,
+        "summoned": False,
+    }
+
+
+def _war3_effect_kinds_for_skill(
+    skill: dict[str, Any],
+    effects: Any,
+    status_effects: Any,
+) -> list[str]:
+    kinds: list[str] = []
+    skill_type = skill.get("type")
+    if skill_type == "projectile" or _effects_include_action(effects, "spawn_projectile"):
+        kinds.extend(["missile", "damage"])
+    if skill_type in {"aoe", "aoe_dot"} or _effects_include_action(effects, "spawn_zone"):
+        kinds.append("area_persistent" if skill_type == "aoe_dot" else "damage")
+    if skill_type == "dash":
+        kinds.append("movement")
+    if skill_type == "summon" or _effects_include_action(effects, "summon"):
+        kinds.append("summon")
+    if isinstance(status_effects, list) and status_effects:
+        kinds.append("debuff")
+    if _effects_include_action(effects, "spawn_vfx_event"):
+        kinds.append("vfx_only")
+    return list(dict.fromkeys(kinds or ["damage"]))
+
+
+def _war3_level_notes(skill: dict[str, Any]) -> str:
+    parts = [str(skill.get("description", "")).strip()]
+    if skill.get("type") == "summon":
+        parts.append("Compiled as a War3-style summon ability with a timed unit.")
+    if skill.get("type") == "aoe_dot":
+        parts.append("Compiled as a persistent area effect with periodic ticks.")
+    return " ".join(part for part in parts if part)
+
+
+def _war3_buff_contract(status_effects: Any) -> dict[str, Any]:
+    if not isinstance(status_effects, list) or not status_effects:
+        return {"enabled": False}
+    first = next((effect for effect in status_effects if isinstance(effect, dict)), None)
+    if first is None:
+        return {"enabled": False}
+    return {
+        "enabled": True,
+        "buff_type": first.get("type"),
+        "duration": _optional_number(first.get("duration")),
+        "tick_interval": _optional_number(first.get("tick_interval")),
+        "value": _optional_number(first.get("value")),
+    }
+
+
+def _war3_art_bindings_for_skill(skill: dict[str, Any], effects: Any) -> list[dict[str, Any]]:
+    skill_type = skill.get("type")
+    bindings: list[dict[str, Any]] = [{"hook": "cast", "event": "on_cast", "usage": "cast_flash"}]
+    if skill_type == "projectile" or _effects_include_action(effects, "spawn_projectile"):
+        bindings.append({"hook": "missile", "event": "on_cast", "usage": "projectile"})
+        bindings.append({"hook": "impact", "event": "on_projectile_hit", "usage": "hit_flash"})
+    if skill_type in {"aoe", "aoe_dot"} or _effects_include_action(effects, "spawn_zone"):
+        bindings.append({"hook": "area", "event": "on_cast", "usage": "ground_decal"})
+        bindings.append({"hook": "loop", "event": "on_zone_tick", "usage": "zone_tick"})
+    if skill_type == "summon" or _effects_include_action(effects, "summon"):
+        bindings.append({"hook": "summon", "event": "on_cast", "usage": "summon_body"})
+        bindings.append({"hook": "death", "event": "on_summon_expire", "usage": "summon_expire"})
+    if isinstance(skill.get("status_effects"), list) and skill["status_effects"]:
+        bindings.append({"hook": "buff", "event": "on_status_tick", "usage": "status_loop"})
+    return bindings
+
+
+def _war3_unsupported_notes(skill: dict[str, Any]) -> list[str]:
+    text = _to_searchable_text(skill)
+    notes: list[str] = []
+    unsupported_terms = {
+        "channel": "Channeling is recorded in ability_contract but compiled to instant demo effects.",
+        "passive": "Passive abilities are recorded but the current demo runtime executes active Q/W/E/R casts.",
+        "toggle": "Toggle abilities are recorded but compiled to a timed buff/area where possible.",
+        "aura": "Aura behavior is recorded as buff/art hooks; full War3 aura ownership is not implemented yet.",
+    }
+    for term, note in unsupported_terms.items():
+        if term in text:
+            notes.append(note)
+    return notes
+
+
+def _effects_include_action(effects: Any, action: str) -> bool:
+    return isinstance(effects, list) and any(
+        isinstance(effect, dict) and effect.get("action") == action
+        for effect in effects
+    )
 
 
 def normalize_directional_area_skills(
@@ -671,6 +961,10 @@ def _status_effect_for_skill(skill: dict[str, Any], status_type: str) -> dict[st
 
 def _number_or_default(value: Any, fallback: float) -> float:
     return float(value) if isinstance(value, (int, float)) else float(fallback)
+
+
+def _optional_number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) else None
 
 
 def _to_searchable_text(value: Any | None) -> str:

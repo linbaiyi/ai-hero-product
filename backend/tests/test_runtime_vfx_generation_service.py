@@ -179,6 +179,27 @@ def request_payload(max_textures: int = 8, project_id: str = "runtime_vfx_test")
     }
 
 
+def vfx_design(skill_name: str = "Sun Spear") -> dict:
+    return {
+        "skill_name": skill_name,
+        "vfx_category": "fire projectile",
+        "visual_keywords": ["flame", "ember", "scarlet energy"],
+        "stages": [
+            {"stage": "cast", "description": "Red flame gathers at the hand."},
+            {"stage": "flight", "description": "A scarlet fire bolt flies forward."},
+            {"stage": "impact", "description": "Orange embers burst outward."},
+            {"stage": "fade", "description": "Warm sparks fade out."},
+        ],
+        "color_palette": {
+            "main": "#FF3B1F",
+            "secondary": "#FF8A2A",
+            "dark": "#2A0703",
+        },
+        "camera_suggestion": "runtime centered sprite",
+        "sound_suggestion": "short flame burst",
+    }
+
+
 def effect_chain_request_payload(project_id: str = "runtime_vfx_effect_chain") -> dict:
     payload = request_payload(max_textures=12, project_id=project_id)
     payload["playable_spec"]["skills"][0]["effects"] = [
@@ -244,6 +265,62 @@ def test_generate_runtime_vfx_assets_from_playable_spec_with_fake_image_provider
     response = generate(project_id="runtime_vfx_service_001")
 
     assert response.generated_assets
+
+
+def test_generation_uses_vfx_design_palette_for_atlas_prompt_and_color_tint():
+    payload = request_payload(project_id="runtime_vfx_service_palette")
+    payload["playable_spec"]["skills"][0]["vfx"]["theme"] = "ice"
+    payload["playable_spec"]["skills"][0]["vfx"]["color"] = "#7DDCFF"
+    payload["vfx_designs"] = [vfx_design()]
+    image_client = CountingImageClient()
+    service = RuntimeVfxGenerationService(image_client=image_client)
+
+    response = service.generate(RuntimeVfxGenerationRequest.model_validate(payload))
+
+    assert "#FF3B1F" in str(image_client.calls[0]["prompt"])
+    assert "must preserve this palette" in str(image_client.calls[0]["prompt"])
+    assert response.runtime_vfx_asset_spec.skills["Q"].assets["projectile"].color_tint == "#FF3B1F"
+
+
+def test_generation_keeps_vfx_design_color_when_playable_skill_name_changes():
+    payload = request_payload(project_id="runtime_vfx_service_palette_slot_fallback")
+    payload["playable_spec"]["skills"][0]["name"] = "Generated Fire Bolt"
+    payload["playable_spec"]["skills"][0]["vfx"]["theme"] = "ice"
+    payload["playable_spec"]["skills"][0]["vfx"]["color"] = "#7DDCFF"
+    payload["hero_design"] = {
+        "hero_name": "Liena",
+        "hero_title": "Flame Caster",
+        "role": "mage",
+        "difficulty": 2,
+        "core_tags": ["fire", "projectile"],
+        "background": "A fire mage.",
+        "combat_style": "Casts red flame projectiles.",
+        "skills": [
+            {
+                "slot": "Q",
+                "name": "Sun Spear",
+                "type": "projectile",
+                "description": "A red flame projectile.",
+                "mechanics": "projectile",
+                "cooldown": "4s",
+                "cost": "20 mana",
+                "damage_type": "fire",
+                "balance_notes": "Training demo projectile.",
+            }
+        ],
+        "combo_logic": "Hit enemies with fire.",
+        "counterplay": "Dodge the projectile.",
+        "balance_summary": "Short cooldown fire poke.",
+    }
+    payload["vfx_designs"] = [vfx_design("Sun Spear")]
+    image_client = CountingImageClient()
+    service = RuntimeVfxGenerationService(image_client=image_client)
+
+    response = service.generate(RuntimeVfxGenerationRequest.model_validate(payload))
+
+    assert "#FF3B1F" in str(image_client.calls[0]["prompt"])
+    assert "#7DDCFF" not in str(image_client.calls[0]["prompt"])
+    assert response.runtime_vfx_asset_spec.skills["Q"].assets["projectile"].color_tint == "#FF3B1F"
 
 
 def test_response_contains_runtime_vfx_asset_spec():
@@ -439,7 +516,7 @@ def test_effect_chain_generates_stage_aware_assets_without_overwriting_usage():
 
     q_assets = response.runtime_vfx_asset_spec.skills["Q"].assets
 
-    assert "projectile_cast_spawn_projectile_0" in q_assets
+    assert "projectile" in q_assets
     assert "ground_decal_projectile_hit_spawn_zone_1" in q_assets
     assert "burn_loop_projectile_hit_spawn_zone_1" in q_assets
     assert q_assets["ground_decal_projectile_hit_spawn_zone_1"].trigger == "on_projectile_hit"
@@ -484,7 +561,7 @@ def test_projectile_hit_zone_assets_are_prioritized_before_cast_flash_when_limit
     response = service.generate(RuntimeVfxGenerationRequest.model_validate(payload))
     q_assets = response.runtime_vfx_asset_spec.skills["Q"].assets
 
-    assert "projectile_cast_spawn_projectile_0" in q_assets
+    assert "projectile" in q_assets
     assert "ground_decal_projectile_hit_spawn_zone_1" in q_assets
     assert "zone_tick_zone_tick_spawn_zone_1" in q_assets
     assert "burn_loop_projectile_hit_spawn_zone_1" in q_assets
@@ -492,10 +569,98 @@ def test_projectile_hit_zone_assets_are_prioritized_before_cast_flash_when_limit
     assert "cast_flash_cast_spawn_projectile_0" not in q_assets
 
 
+def test_effect_only_skills_still_generate_required_base_assets():
+    payload = request_payload(max_textures=20, project_id="runtime_vfx_service_required_base")
+    skills = payload["playable_spec"]["skills"]
+
+    skills[1].update(
+        {
+            "name": "Flame Familiar",
+            "type": "summon",
+            "duration": 8,
+            "damage": 20,
+            "range": 8,
+            "radius": 1.2,
+            "description": "Summon a flame familiar that bursts when it expires.",
+            "effects": [
+                {
+                    "trigger": "on_summon_expire",
+                    "action": "spawn_vfx_event",
+                    "target": "summon_position",
+                    "radius": 2,
+                }
+            ],
+        }
+    )
+    skills[2].update(
+        {
+            "name": "Flame Run",
+            "type": "projectile",
+            "damage": 90,
+            "range": 12,
+            "radius": 1.4,
+            "speed": 15,
+            "description": "Launch a forward flame rush that explodes on contact.",
+            "effects": [
+                {
+                    "trigger": "on_projectile_hit",
+                    "action": "spawn_vfx_event",
+                    "target": "projectile_position",
+                    "radius": 1.5,
+                }
+            ],
+        }
+    )
+    skills[3].update(
+        {
+            "name": "Worldfire Field",
+            "type": "aoe_dot",
+            "damage": 35,
+            "range": 12,
+            "radius": 5,
+            "duration": 5,
+            "tick_interval": 1,
+            "description": "Create a burning field.",
+            "effects": [
+                {
+                    "trigger": "on_status_tick",
+                    "action": "apply_status",
+                    "target": "enemies_in_radius",
+                    "radius": 5,
+                    "status_effects": [
+                        {
+                            "type": "burn",
+                            "duration": 3,
+                            "tick_interval": 1,
+                            "damage": 8,
+                        }
+                    ],
+                }
+            ],
+        }
+    )
+    service = RuntimeVfxGenerationService(image_client=FakeImageClient())
+
+    response = service.generate(RuntimeVfxGenerationRequest.model_validate(payload))
+
+    assert "summon_body" in response.runtime_vfx_asset_spec.skills["W"].assets
+    assert "projectile" in response.runtime_vfx_asset_spec.skills["E"].assets
+    assert "ground_decal" in response.runtime_vfx_asset_spec.skills["R"].assets
+
+
 def test_invalid_playable_spec_fails():
     invalid = copy.deepcopy(request_payload())
     invalid["playable_spec"]["version"] = "2.0"
 
+    with pytest.raises(ValidationError):
+        RuntimeVfxGenerationRequest.model_validate(invalid)
+
+
+def test_max_textures_accepts_99_and_rejects_100():
+    valid = request_payload(max_textures=99)
+    assert RuntimeVfxGenerationRequest.model_validate(valid).max_textures == 99
+
+    invalid = request_payload(max_textures=100)
     with pytest.raises(ValidationError):
         RuntimeVfxGenerationRequest.model_validate(invalid)
 

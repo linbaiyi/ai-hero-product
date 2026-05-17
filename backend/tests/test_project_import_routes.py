@@ -9,7 +9,12 @@ from app.api.project_routes import get_project_repository
 from app.main import app
 from app.services import project_import_service
 from app.storage.project_repository import ProjectRepository
-from project_test_helpers import make_project_save_request, make_runtime_vfx_asset_spec
+from project_test_helpers import (
+    make_board_result,
+    make_image_result,
+    make_project_save_request,
+    make_runtime_vfx_asset_spec,
+)
 
 
 client = TestClient(app)
@@ -97,6 +102,45 @@ def test_import_project_route_restores_runtime_vfx_textures(tmp_path, monkeypatc
     asset_path = runtime_vfx_spec["skills"]["Q"]["assets"]["projectile"]["path"]
     assert response.status_code == 200
     assert fake_resolve_runtime_vfx_file(asset_path).read_bytes() == b"fake-png-data"
+
+
+def test_import_project_route_restores_skill_images_and_board(tmp_path, monkeypatch):
+    override_repo(tmp_path)
+    output_root = tmp_path / "outputs"
+    project_data = make_project_save_request(
+        image_results=[make_image_result()],
+        board_result=make_board_result(),
+    )
+
+    def fake_resolve_output_file(path: str) -> Path:
+        normalized = path.replace("\\", "/").removeprefix("outputs/")
+        return output_root / normalized
+
+    monkeypatch.setattr(
+        project_import_service,
+        "resolve_output_file",
+        fake_resolve_output_file,
+    )
+
+    response = client.post(
+        "/api/projects/import",
+        content=make_archive(
+            project_data,
+            extra_files={
+                "images/skill_fire.png": b"fake-skill-image",
+                "board/vfx_board.png": b"fake-board-image",
+            },
+        ),
+        headers={"Content-Type": "application/zip"},
+    )
+
+    assert response.status_code == 200
+    assert fake_resolve_output_file(
+        project_data["image_results"][0]["image_path"]
+    ).read_bytes() == b"fake-skill-image"
+    assert fake_resolve_output_file(
+        project_data["board_result"]["board_path"]
+    ).read_bytes() == b"fake-board-image"
 
 
 def test_import_project_route_rejects_invalid_zip(tmp_path):

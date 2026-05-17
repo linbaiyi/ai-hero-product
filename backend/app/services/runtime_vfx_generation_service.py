@@ -176,6 +176,16 @@ class RuntimeVfxGenerationService:
                     if req.runtime_vfx_asset_spec
                     else None
                 ),
+                "hero_design": (
+                    req.hero_design.model_dump() if req.hero_design else None
+                ),
+                "vfx_designs": [
+                    vfx_design.model_dump() for vfx_design in req.vfx_designs
+                ],
+                "source_request": (
+                    req.source_request.model_dump() if req.source_request else None
+                ),
+                "element_theme": req.element_theme,
                 "transparent_background": req.transparent_background,
             }
         )
@@ -266,7 +276,7 @@ class RuntimeVfxGenerationService:
                 "scale": DEFAULT_SCALE_BY_USAGE[item.usage],
                 "duration": DEFAULT_DURATION_BY_USAGE[item.usage],
                 "loop": _should_loop(item.skill_type, item.usage),
-                "color_tint": _color_for_slot(req, item.slot),
+                "color_tint": item.color_tint or _color_for_slot(req, item.slot),
                 "trigger": item.trigger,
                 "action": item.action,
                 "effect_index": item.effect_index,
@@ -474,6 +484,15 @@ def _should_loop(skill_type: str, usage: str) -> bool:
 def _color_for_slot(req: RuntimeVfxGenerationRequest, slot: str) -> str:
     for skill in req.playable_spec.skills:
         if skill.slot == slot:
+            for vfx_design in req.vfx_designs:
+                if vfx_design.skill_name == skill.name:
+                    for key in ("main", "primary", "core", "dominant", "secondary"):
+                        value = vfx_design.color_palette.get(key)
+                        if value:
+                            return value
+                    for value in vfx_design.color_palette.values():
+                        if value:
+                            return value
             return skill.vfx.color
     return "#ffffff"
 

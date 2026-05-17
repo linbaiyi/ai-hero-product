@@ -247,6 +247,70 @@ describe("HeroPlayableSpec desktop validation", () => {
     expect(result.success).toBe(true);
   });
 
+  it("war3 ability contract passes validation and is preserved", () => {
+    const spec = cloneSpec();
+    spec.skills[0].ability_contract = {
+      ability_id: "q_firebolt",
+      base_order: "acidbomb",
+      cast_type: "point_target",
+      primary_target: "point",
+      target_filters: {
+        allowed: ["point", "enemy_unit"],
+        enemy: true,
+        ally: false,
+        self: false,
+        ground: true,
+        summoned: false,
+      },
+      effect_kinds: ["missile", "damage", "vfx_only"],
+      levels: [
+        {
+          level: 1,
+          cooldown: 4,
+          resource_cost: 20,
+          damage: 120,
+          area: 1,
+          notes: "War3-style projectile compiled to demo runtime effects.",
+        },
+      ],
+      missile: {
+        enabled: true,
+        speed: 16,
+        arc: 0,
+        homing: false,
+      },
+      area: {
+        enabled: false,
+      },
+      buff: {
+        enabled: false,
+      },
+      summon: {
+        enabled: false,
+      },
+      art_bindings: [
+        {
+          hook: "missile",
+          event: "on_cast",
+          usage: "projectile",
+        },
+        {
+          hook: "impact",
+          event: "on_projectile_hit",
+          usage: "hit_flash",
+        },
+      ],
+      unsupported_notes: [],
+    };
+
+    const result = validatePlayableSpec(spec);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.skills[0].ability_contract?.base_order).toBe("acidbomb");
+    }
+  });
+
   it("invalid skill effect trigger fails", () => {
     const spec = cloneSpec();
     spec.skills[0].effects = [

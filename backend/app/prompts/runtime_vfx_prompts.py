@@ -61,6 +61,10 @@ def build_runtime_vfx_prompt(
     usage: str,
     render_mode: str,
     transparent_background: bool = True,
+    element: str | None = None,
+    primary_color: str | None = None,
+    color_palette: dict[str, str] | None = None,
+    visual_keywords: list[str] | None = None,
 ) -> str:
     background_instruction = (
         "transparent background, real alpha transparency, transparent PNG with real alpha channel, PNG with alpha if supported"
@@ -69,12 +73,18 @@ def build_runtime_vfx_prompt(
     )
     usage_detail = USAGE_DETAILS.get(usage, "single isolated visual effect element")
     usage_negative = USAGE_NEGATIVE_DETAILS.get(usage, "")
+    effect_element = element or skill.vfx.theme
+    effect_primary_color = primary_color or skill.vfx.color
+    palette_instruction = _format_color_palette_instruction(color_palette)
+    keyword_instruction = _format_visual_keyword_instruction(visual_keywords)
     texture_prompt = build_vfx_texture_prompt(
         resource_type=usage,
         skill_name=skill.name,
-        element=skill.vfx.theme,
+        element=effect_element,
         keywords=[
-            skill.vfx.color,
+            effect_primary_color,
+            *(color_palette or {}).values(),
+            *(visual_keywords or []),
             skill.vfx.shape,
             skill.vfx.impact,
             skill.vfx.trail,
@@ -93,7 +103,32 @@ def build_runtime_vfx_prompt(
         f"skill name {skill.name}, skill type {skill.type}, usage {usage}, "
         f"render mode {render_mode}, {usage_detail}, "
         f"{usage_negative}, "
-        f"{skill.vfx.theme} theme, primary color {skill.vfx.color}, "
+        f"{effect_element} theme, primary color {effect_primary_color}, "
+        f"{palette_instruction}"
+        f"{keyword_instruction}"
         f"shape language {skill.vfx.shape}, impact style {skill.vfx.impact}, "
         f"trail style {skill.vfx.trail}"
     )
+
+
+def _format_color_palette_instruction(color_palette: dict[str, str] | None) -> str:
+    if not color_palette:
+        return ""
+    palette = ", ".join(
+        f"{name} {value}" for name, value in color_palette.items() if value
+    )
+    if not palette:
+        return ""
+    return (
+        f"visual design color palette {palette}, must preserve this palette, "
+        f"avoid unrelated hue shifts, "
+    )
+
+
+def _format_visual_keyword_instruction(visual_keywords: list[str] | None) -> str:
+    if not visual_keywords:
+        return ""
+    keywords = ", ".join(keyword for keyword in visual_keywords if keyword)
+    if not keywords:
+        return ""
+    return f"visual design keywords {keywords}, "

@@ -51,6 +51,23 @@ describe("runtimeVfxApi", () => {
 
     await generateRuntimeVfxAssets({
       playable_spec: defaultPlayableSpec,
+      vfx_designs: [
+        {
+          skill_name: "Test Skill",
+          vfx_category: "fire projectile",
+          visual_keywords: ["flame", "ember"],
+          stages: [
+            { stage: "cast", description: "red flame cast" },
+            { stage: "flight", description: "red flame flight" },
+            { stage: "impact", description: "red flame impact" },
+            { stage: "fade", description: "red flame fade" },
+          ],
+          color_palette: { main: "#FF3B1F", secondary: "#FF8A2A" },
+          camera_suggestion: "runtime sprite",
+          sound_suggestion: "flame burst",
+        },
+      ],
+      element_theme: "fire",
       max_textures: 6,
       image_size: "512x512",
       transparent_background: true,
@@ -60,6 +77,12 @@ describe("runtimeVfxApi", () => {
     const [, options] = fetchMock.mock.calls[0];
     expect(JSON.parse(options.body)).toMatchObject({
       playable_spec: defaultPlayableSpec,
+      vfx_designs: [
+        expect.objectContaining({
+          color_palette: { main: "#FF3B1F", secondary: "#FF8A2A" },
+        }),
+      ],
+      element_theme: "fire",
       max_textures: 6,
       image_size: "512x512",
       transparent_background: true,

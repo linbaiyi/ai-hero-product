@@ -15,6 +15,18 @@ import type {
   VfxShape,
   VfxSpec,
   VfxTheme,
+  War3AbilityContract,
+  War3AbilityLevelSpec,
+  War3AreaSpec,
+  War3ArtBindingSpec,
+  War3ArtHook,
+  War3BuffSpec,
+  War3CastType,
+  War3EffectKind,
+  War3MissileSpec,
+  War3SummonSpec,
+  War3TargetFilters,
+  War3TargetType,
 } from "./playableSpecTypes";
 
 export type ValidationResult<T> =
@@ -84,6 +96,46 @@ const SKILL_EFFECT_TARGETS = [
   "summon_position",
   "zone_center",
 ] as const;
+const WAR3_CAST_TYPES = [
+  "instant",
+  "unit_target",
+  "point_target",
+  "area_target",
+  "self",
+  "passive",
+  "toggle",
+  "channel",
+] as const;
+const WAR3_TARGET_TYPES = [
+  "none",
+  "self",
+  "enemy_unit",
+  "ally_unit",
+  "point",
+  "area",
+  "summoned_unit",
+] as const;
+const WAR3_EFFECT_KINDS = [
+  "damage",
+  "heal",
+  "buff",
+  "debuff",
+  "summon",
+  "missile",
+  "area_persistent",
+  "movement",
+  "vfx_only",
+] as const;
+const WAR3_ART_HOOKS = [
+  "cast",
+  "missile",
+  "impact",
+  "area",
+  "buff",
+  "summon",
+  "death",
+  "loop",
+] as const;
 
 export const playableSpecSchema = {
   skill_slots: SKILL_SLOTS,
@@ -95,6 +147,10 @@ export const playableSpecSchema = {
   skill_effect_triggers: SKILL_EFFECT_TRIGGERS,
   skill_effect_actions: SKILL_EFFECT_ACTIONS,
   skill_effect_targets: SKILL_EFFECT_TARGETS,
+  war3_cast_types: WAR3_CAST_TYPES,
+  war3_target_types: WAR3_TARGET_TYPES,
+  war3_effect_kinds: WAR3_EFFECT_KINDS,
+  war3_art_hooks: WAR3_ART_HOOKS,
 };
 
 export function validatePlayableSpec(
@@ -281,6 +337,11 @@ function validateSkill(
     errors,
   );
   const effects = validateSkillEffects(skill.effects, `${path}.effects`, errors);
+  const ability_contract = validateWar3AbilityContract(
+    skill.ability_contract,
+    `${path}.ability_contract`,
+    errors,
+  );
   const description = requiredText(skill.description, `${path}.description`, errors);
   const vfx = validateVfx(skill.vfx, `${path}.vfx`, errors);
 
@@ -308,6 +369,7 @@ function validateSkill(
     distance === null ||
     status_effects === null ||
     effects === null ||
+    ability_contract === null ||
     !description ||
     !vfx
   ) {
@@ -329,9 +391,288 @@ function validateSkill(
     distance,
     status_effects,
     effects,
+    ability_contract,
     description,
     vfx,
   });
+}
+
+function validateWar3AbilityContract(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3AbilityContract | undefined | null {
+  if (input === undefined || input === null) {
+    return undefined;
+  }
+  const contract = objectValue(input, path, errors);
+  if (!contract) {
+    return null;
+  }
+
+  const ability_id = requiredText(contract.ability_id, `${path}.ability_id`, errors);
+  const base_order = requiredText(contract.base_order, `${path}.base_order`, errors);
+  const cast_type = enumValue<War3CastType>(
+    contract.cast_type,
+    WAR3_CAST_TYPES,
+    `${path}.cast_type`,
+    errors,
+  );
+  const primary_target = enumValue<War3TargetType>(
+    contract.primary_target,
+    WAR3_TARGET_TYPES,
+    `${path}.primary_target`,
+    errors,
+  );
+  const target_filters = validateWar3TargetFilters(
+    contract.target_filters,
+    `${path}.target_filters`,
+    errors,
+  );
+  const effect_kinds = enumArray<War3EffectKind>(
+    contract.effect_kinds,
+    WAR3_EFFECT_KINDS,
+    `${path}.effect_kinds`,
+    errors,
+  );
+  const levels = validateWar3AbilityLevels(contract.levels, `${path}.levels`, errors);
+  const missile = validateWar3Missile(contract.missile, `${path}.missile`, errors);
+  const area = validateWar3Area(contract.area, `${path}.area`, errors);
+  const buff = validateWar3Buff(contract.buff, `${path}.buff`, errors);
+  const summon = validateWar3Summon(contract.summon, `${path}.summon`, errors);
+  const art_bindings = validateWar3ArtBindings(
+    contract.art_bindings,
+    `${path}.art_bindings`,
+    errors,
+  );
+  const unsupported_notes = optionalTextArray(
+    contract.unsupported_notes,
+    `${path}.unsupported_notes`,
+    errors,
+  );
+
+  if (
+    !ability_id ||
+    !base_order ||
+    !cast_type ||
+    !primary_target ||
+    !target_filters ||
+    !effect_kinds ||
+    !levels ||
+    !missile ||
+    !area ||
+    !buff ||
+    !summon ||
+    !art_bindings ||
+    !unsupported_notes
+  ) {
+    return null;
+  }
+
+  return {
+    ability_id,
+    base_order,
+    cast_type,
+    primary_target,
+    target_filters,
+    effect_kinds,
+    levels,
+    missile,
+    area,
+    buff,
+    summon,
+    art_bindings,
+    unsupported_notes,
+  };
+}
+
+function validateWar3TargetFilters(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3TargetFilters | null {
+  const filters = objectValue(input, path, errors);
+  if (!filters) {
+    return null;
+  }
+  const allowed = enumArray<War3TargetType>(
+    filters.allowed,
+    WAR3_TARGET_TYPES,
+    `${path}.allowed`,
+    errors,
+  );
+  const enemy = booleanValue(filters.enemy, `${path}.enemy`, errors);
+  const ally = booleanValue(filters.ally, `${path}.ally`, errors);
+  const self = booleanValue(filters.self, `${path}.self`, errors);
+  const ground = booleanValue(filters.ground, `${path}.ground`, errors);
+  const summoned = booleanValue(filters.summoned, `${path}.summoned`, errors);
+
+  if (!allowed || enemy === null || ally === null || self === null || ground === null || summoned === null) {
+    return null;
+  }
+  return { allowed, enemy, ally, self, ground, summoned };
+}
+
+function validateWar3AbilityLevels(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3AbilityLevelSpec[] | null {
+  if (!Array.isArray(input)) {
+    errors.push(`${path} must be an array`);
+    return null;
+  }
+  const result: War3AbilityLevelSpec[] = [];
+  for (const [index, rawLevel] of input.entries()) {
+    const level = objectValue(rawLevel, `${path}[${index}]`, errors);
+    if (!level) {
+      continue;
+    }
+    const levelNumber = positiveNumber(level.level, `${path}[${index}].level`, errors);
+    const cooldown = nonNegativeNumber(level.cooldown, `${path}[${index}].cooldown`, errors);
+    const resource_cost =
+      level.resource_cost === undefined
+        ? 0
+        : nonNegativeNumber(level.resource_cost, `${path}[${index}].resource_cost`, errors);
+    const damage = optionalNumber(level.damage, `${path}[${index}].damage`, errors, "nonnegative");
+    const area = optionalNumber(level.area, `${path}[${index}].area`, errors, "nonnegative");
+    const duration = optionalNumber(level.duration, `${path}[${index}].duration`, errors, "nonnegative");
+    const notes =
+      level.notes === undefined
+        ? undefined
+        : optionalText(level.notes, `${path}[${index}].notes`, errors);
+
+    if (
+      levelNumber === null ||
+      cooldown === null ||
+      resource_cost === null ||
+      damage === null ||
+      area === null ||
+      duration === null ||
+      notes === null
+    ) {
+      continue;
+    }
+    result.push(omitUndefined({ level: levelNumber, cooldown, resource_cost, damage, area, duration, notes }));
+  }
+  return errors.length > 0 ? null : result;
+}
+
+function validateWar3Missile(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3MissileSpec | null {
+  const missile = objectValue(input, path, errors);
+  if (!missile) {
+    return null;
+  }
+  const enabled = booleanValue(missile.enabled, `${path}.enabled`, errors);
+  const speed = optionalNumber(missile.speed, `${path}.speed`, errors, "nonnegative");
+  const arc = optionalNumber(missile.arc, `${path}.arc`, errors, "nonnegative");
+  const homing = booleanValue(missile.homing, `${path}.homing`, errors);
+  if (enabled === null || speed === null || arc === null || homing === null) {
+    return null;
+  }
+  return omitUndefined({ enabled, speed, arc, homing });
+}
+
+function validateWar3Area(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3AreaSpec | null {
+  const areaSpec = objectValue(input, path, errors);
+  if (!areaSpec) {
+    return null;
+  }
+  const enabled = booleanValue(areaSpec.enabled, `${path}.enabled`, errors);
+  const radius = optionalNumber(areaSpec.radius, `${path}.radius`, errors, "nonnegative");
+  const duration = optionalNumber(areaSpec.duration, `${path}.duration`, errors, "nonnegative");
+  const tick_interval = optionalNumber(areaSpec.tick_interval, `${path}.tick_interval`, errors, "positive");
+  if (enabled === null || radius === null || duration === null || tick_interval === null) {
+    return null;
+  }
+  return omitUndefined({ enabled, radius, duration, tick_interval });
+}
+
+function validateWar3Buff(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3BuffSpec | null {
+  const buff = objectValue(input, path, errors);
+  if (!buff) {
+    return null;
+  }
+  const enabled = booleanValue(buff.enabled, `${path}.enabled`, errors);
+  const buff_type =
+    buff.buff_type === undefined || buff.buff_type === null
+      ? undefined
+      : enumValue<StatusEffectType>(buff.buff_type, STATUS_EFFECT_TYPES, `${path}.buff_type`, errors);
+  const duration = optionalNumber(buff.duration, `${path}.duration`, errors, "nonnegative");
+  const tick_interval = optionalNumber(buff.tick_interval, `${path}.tick_interval`, errors, "positive");
+  const value = optionalNumber(buff.value, `${path}.value`, errors, "nonnegative");
+  if (enabled === null || buff_type === null || duration === null || tick_interval === null || value === null) {
+    return null;
+  }
+  return omitUndefined({ enabled, buff_type, duration, tick_interval, value });
+}
+
+function validateWar3Summon(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3SummonSpec | null {
+  const summon = objectValue(input, path, errors);
+  if (!summon) {
+    return null;
+  }
+  const enabled = booleanValue(summon.enabled, `${path}.enabled`, errors);
+  const unit_name =
+    summon.unit_name === undefined || summon.unit_name === null
+      ? undefined
+      : requiredText(summon.unit_name, `${path}.unit_name`, errors);
+  const duration = optionalNumber(summon.duration, `${path}.duration`, errors, "nonnegative");
+  const attack_damage = optionalNumber(summon.attack_damage, `${path}.attack_damage`, errors, "nonnegative");
+  const attack_range = optionalNumber(summon.attack_range, `${path}.attack_range`, errors, "nonnegative");
+  if (enabled === null || unit_name === null || duration === null || attack_damage === null || attack_range === null) {
+    return null;
+  }
+  return omitUndefined({ enabled, unit_name, duration, attack_damage, attack_range });
+}
+
+function validateWar3ArtBindings(
+  input: unknown,
+  path: string,
+  errors: string[],
+): War3ArtBindingSpec[] | null {
+  if (!Array.isArray(input)) {
+    errors.push(`${path} must be an array`);
+    return null;
+  }
+  const result: War3ArtBindingSpec[] = [];
+  for (const [index, rawBinding] of input.entries()) {
+    const binding = objectValue(rawBinding, `${path}[${index}]`, errors);
+    if (!binding) {
+      continue;
+    }
+    const hook = enumValue<War3ArtHook>(binding.hook, WAR3_ART_HOOKS, `${path}[${index}].hook`, errors);
+    const event =
+      binding.event === undefined || binding.event === null
+        ? undefined
+        : enumValue<SkillEffectTrigger>(binding.event, SKILL_EFFECT_TRIGGERS, `${path}[${index}].event`, errors);
+    const usage = requiredText(binding.usage, `${path}[${index}].usage`, errors);
+    const attachment =
+      binding.attachment === undefined || binding.attachment === null
+        ? undefined
+        : requiredText(binding.attachment, `${path}[${index}].attachment`, errors);
+    if (!hook || event === null || !usage || attachment === null) {
+      continue;
+    }
+    result.push(omitUndefined({ hook, event, usage, attachment }));
+  }
+  return errors.length > 0 ? null : result;
 }
 
 function validateSkillEffects(
@@ -630,6 +971,14 @@ function requiredText(
   return value;
 }
 
+function optionalText(input: unknown, path: string, errors: string[]): string | null {
+  if (typeof input !== "string") {
+    errors.push(`${path} must be a string`);
+    return null;
+  }
+  return input.trim();
+}
+
 function positiveNumber(
   input: unknown,
   path: string,
@@ -678,6 +1027,14 @@ function optionalNumber(
   return input;
 }
 
+function booleanValue(input: unknown, path: string, errors: string[]): boolean | null {
+  if (typeof input !== "boolean") {
+    errors.push(`${path} must be a boolean`);
+    return null;
+  }
+  return input;
+}
+
 function enumValue<T extends string>(
   input: unknown,
   allowed: readonly T[],
@@ -689,6 +1046,48 @@ function enumValue<T extends string>(
     return null;
   }
   return input as T;
+}
+
+function enumArray<T extends string>(
+  input: unknown,
+  allowed: readonly T[],
+  path: string,
+  errors: string[],
+): T[] | null {
+  if (!Array.isArray(input)) {
+    errors.push(`${path} must be an array`);
+    return null;
+  }
+  const values: T[] = [];
+  for (const [index, item] of input.entries()) {
+    const value = enumValue<T>(item, allowed, `${path}[${index}]`, errors);
+    if (value) {
+      values.push(value);
+    }
+  }
+  return errors.length > 0 ? null : values;
+}
+
+function optionalTextArray(
+  input: unknown,
+  path: string,
+  errors: string[],
+): string[] | null {
+  if (input === undefined || input === null) {
+    return [];
+  }
+  if (!Array.isArray(input)) {
+    errors.push(`${path} must be an array`);
+    return null;
+  }
+  const values: string[] = [];
+  for (const [index, item] of input.entries()) {
+    const value = requiredText(item, `${path}[${index}]`, errors);
+    if (value) {
+      values.push(value);
+    }
+  }
+  return errors.length > 0 ? null : values;
 }
 
 function isFiniteNumber(input: unknown): input is number {

@@ -180,6 +180,7 @@ def test_generate_returns_valid_hero_playable_spec():
 
     assert isinstance(spec, HeroPlayableSpec)
     assert spec.version == "1.0"
+    assert all(skill.ability_contract is not None for skill in spec.skills)
 
 
 def test_generated_spec_contains_qwer():
@@ -214,6 +215,47 @@ def test_generate_adds_hit_feedback_vfx_event_without_removing_projectile_logic(
         and effect.target == "projectile_position"
         for effect in q_skill.effects
     )
+
+
+def test_generate_repairs_partial_llm_effects_to_executable_contract():
+    partial = valid_spec()
+    partial["skills"][0]["effects"] = [
+        {
+            "trigger": "on_projectile_hit",
+            "action": "damage",
+            "target": "target_enemy",
+            "damage": 120,
+        }
+    ]
+
+    class PartialEffectsLLMClient:
+        def generate_json(self, prompt: str, schema_name: str | None = None) -> dict:
+            return partial
+
+    service = PlayableSpecService(llm_client=PartialEffectsLLMClient())
+
+    spec = service.generate(hero_design())
+    q_skill = next(skill for skill in spec.skills if skill.slot == "Q")
+
+    assert any(
+        effect.trigger == "on_cast" and effect.action == "spawn_projectile"
+        for effect in q_skill.effects
+    )
+    assert q_skill.ability_contract is not None
+    assert q_skill.ability_contract.missile.enabled is True
+    assert "missile" in q_skill.ability_contract.effect_kinds
+
+
+def test_generate_adds_war3_summon_contract_for_summon_design():
+    service = PlayableSpecService(llm_client=ValidPlayableLLMClient())
+
+    spec = service.generate(summon_hero_design())
+    summon_skill = next(skill for skill in spec.skills if skill.type == "summon")
+
+    assert summon_skill.ability_contract is not None
+    assert summon_skill.ability_contract.summon.enabled is True
+    assert "summon" in summon_skill.ability_contract.effect_kinds
+    assert any(binding.usage == "summon_body" for binding in summon_skill.ability_contract.art_bindings)
 
 
 def test_invalid_llm_json_falls_back_to_safe_spec():

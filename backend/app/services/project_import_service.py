@@ -5,7 +5,11 @@ from pathlib import Path
 
 from app.schemas.project_import_schema import ProjectImportResult
 from app.schemas.project_schema import ProjectRecord, ProjectSaveRequest
-from app.storage.file_storage import resolve_runtime_vfx_file, sanitize_file_name
+from app.storage.file_storage import (
+    resolve_output_file,
+    resolve_runtime_vfx_file,
+    sanitize_file_name,
+)
 from app.storage.project_repository import ProjectRepository
 
 
@@ -25,6 +29,8 @@ class ProjectImportService:
         project_data = _read_project_json_from_zip(archive_bytes)
         save_request = _project_save_request_from_import_data(project_data)
         imported = self.project_repository.save_project(save_request)
+        _restore_project_images_from_zip(archive_bytes, imported)
+        _restore_board_image_from_zip(archive_bytes, imported)
         _restore_runtime_vfx_textures_from_zip(archive_bytes, imported)
         return ProjectImportResult(project_id=imported.project_id, project=imported)
 
@@ -54,6 +60,133 @@ def _project_save_request_from_import_data(project_data: dict) -> ProjectSaveReq
             record.model_dump(exclude={"created_at", "updated_at"})
         )
     return ProjectSaveRequest.model_validate(project_data)
+
+
+def _restore_project_images_from_zip(
+    archive_bytes: bytes,
+    record: ProjectRecord,
+) -> None:
+    if not record.image_results:
+        return
+
+    with zipfile.ZipFile(BytesIO(archive_bytes), "r") as archive:
+        names = set(archive.namelist())
+        image_names = sorted(name for name in names if name.startswith("images/"))
+        used_archive_names: set[str] = set()
+
+        for index, image_result in enumerate(record.image_results, start=1):
+            if not image_result.success:
+                continue
+
+            archive_name = _find_project_image_archive_name(
+                names=names,
+                image_names=image_names,
+                used_archive_names=used_archive_names,
+                index=index,
+                skill_name=image_result.skill_name,
+                file_name=image_result.file_name,
+            )
+            if archive_name is None:
+                continue
+
+            if _restore_output_file_from_archive(
+                archive=archive,
+                archive_name=archive_name,
+                output_path=image_result.image_path,
+            ):
+                used_archive_names.add(archive_name)
+
+
+def _restore_board_image_from_zip(
+    archive_bytes: bytes,
+    record: ProjectRecord,
+) -> None:
+    if record.board_result is None or not record.board_result.success:
+        return
+
+    with zipfile.ZipFile(BytesIO(archive_bytes), "r") as archive:
+        names = set(archive.namelist())
+        archive_name = _find_board_archive_name(names, record.board_result.file_name)
+        if archive_name is None:
+            return
+        _restore_output_file_from_archive(
+            archive=archive,
+            archive_name=archive_name,
+            output_path=record.board_result.board_path,
+        )
+
+
+def _restore_output_file_from_archive(
+    archive: zipfile.ZipFile,
+    archive_name: str,
+    output_path: str,
+) -> bool:
+    try:
+        info = archive.getinfo(archive_name)
+    except KeyError:
+        return False
+    if info.file_size > MAX_IMPORT_BYTES:
+        return False
+
+    try:
+        target_path = resolve_output_file(output_path)
+    except (ValueError, PermissionError):
+        return False
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with archive.open(info, "r") as source:
+        target_path.write_bytes(source.read())
+    return True
+
+
+def _find_project_image_archive_name(
+    names: set[str],
+    image_names: list[str],
+    used_archive_names: set[str],
+    index: int,
+    skill_name: str,
+    file_name: str,
+) -> str | None:
+    safe_file_name = sanitize_file_name(file_name)
+    if not safe_file_name.lower().endswith(".png"):
+        safe_file_name = f"{safe_file_name}.png"
+
+    safe_skill_name = sanitize_file_name(skill_name)
+    if not safe_skill_name.lower().endswith(".png"):
+        safe_skill_name = f"{safe_skill_name}.png"
+
+    candidates = [
+        f"images/{safe_file_name}",
+        f"images/{index}_{safe_file_name}",
+        f"images/{safe_skill_name}",
+        f"images/{index}_{safe_skill_name}",
+    ]
+    for candidate in candidates:
+        if candidate in names and candidate not in used_archive_names:
+            return candidate
+
+    for image_name in image_names:
+        if image_name in used_archive_names:
+            continue
+        if Path(image_name).name == safe_file_name:
+            return image_name
+
+    unused_image_names = [name for name in image_names if name not in used_archive_names]
+    if len(unused_image_names) == 1:
+        return unused_image_names[0]
+    return None
+
+
+def _find_board_archive_name(names: set[str], file_name: str) -> str | None:
+    safe_file_name = sanitize_file_name(file_name)
+    candidates = [
+        "board/vfx_board.png",
+        f"board/{safe_file_name}",
+    ]
+    for candidate in candidates:
+        if candidate in names:
+            return candidate
+    return next((name for name in names if name.startswith("board/")), None)
 
 
 def _restore_runtime_vfx_textures_from_zip(

@@ -28,5 +28,13 @@ Thumbs.db
 .vite/
 coverage/
 
+# Archive packages
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+
 # Dev runtime temp scripts
 .dev-runtime/

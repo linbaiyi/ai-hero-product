@@ -3,11 +3,35 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backendDir = Join-Path $root "backend"
 $desktopDir = Join-Path $root "desktop"
-$backendPython = Join-Path $backendDir ".venv\Scripts\python.exe"
+$backendVenvPython = Join-Path $backendDir ".venv\Scripts\python.exe"
 $backendPort = 8001
 $devRuntimeDir = Join-Path $root ".dev-runtime"
 $backendRunner = Join-Path $devRuntimeDir "start-backend.ps1"
 $desktopRunner = Join-Path $devRuntimeDir "start-desktop.ps1"
+
+function Resolve-BackendPython {
+  param(
+    [string]$VenvPython
+  )
+
+  if (Test-Path -LiteralPath $VenvPython) {
+    return $VenvPython
+  }
+
+  $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue |
+    Where-Object { $_.Source -and $_.Source -notlike "*\WindowsApps\python.exe" } |
+    Select-Object -First 1
+  if ($pythonCommand) {
+    return $pythonCommand.Source
+  }
+
+  $pyCommand = Get-Command py.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($pyCommand) {
+    return $pyCommand.Source
+  }
+
+  throw "No Python interpreter found. Install Python 3.11+ or create backend virtual environment: $VenvPython"
+}
 
 if (-not (Test-Path -LiteralPath $backendDir)) {
   throw "Backend directory not found: $backendDir"
@@ -17,13 +41,16 @@ if (-not (Test-Path -LiteralPath $desktopDir)) {
   throw "Desktop directory not found: $desktopDir"
 }
 
-if (-not (Test-Path -LiteralPath $backendPython)) {
-  throw "Backend virtual environment not found: $backendPython"
-}
+$backendPython = Resolve-BackendPython -VenvPython $backendVenvPython
 
 Write-Host "Starting AI Game Hero Designer dev environment..." -ForegroundColor Yellow
 Write-Host "Backend: http://127.0.0.1:$backendPort" -ForegroundColor DarkGray
 Write-Host "Desktop: Electron dev mode" -ForegroundColor DarkGray
+if ($backendPython -ne $backendVenvPython) {
+  Write-Host "Backend .venv not found; using system Python: $backendPython" -ForegroundColor Yellow
+} else {
+  Write-Host "Backend Python: $backendPython" -ForegroundColor DarkGray
+}
 
 New-Item -ItemType Directory -Force -Path $devRuntimeDir | Out-Null
 

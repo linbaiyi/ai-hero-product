@@ -36,6 +36,46 @@ SkillEffectTarget = Literal[
     "summon_position",
     "zone_center",
 ]
+War3CastType = Literal[
+    "instant",
+    "unit_target",
+    "point_target",
+    "area_target",
+    "self",
+    "passive",
+    "toggle",
+    "channel",
+]
+War3TargetType = Literal[
+    "none",
+    "self",
+    "enemy_unit",
+    "ally_unit",
+    "point",
+    "area",
+    "summoned_unit",
+]
+War3EffectKind = Literal[
+    "damage",
+    "heal",
+    "buff",
+    "debuff",
+    "summon",
+    "missile",
+    "area_persistent",
+    "movement",
+    "vfx_only",
+]
+War3ArtHook = Literal[
+    "cast",
+    "missile",
+    "impact",
+    "area",
+    "buff",
+    "summon",
+    "death",
+    "loop",
+]
 VfxTheme = Literal[
     "fire",
     "ice",
@@ -116,6 +156,87 @@ class SkillEffectSpec(BaseModel):
         return self
 
 
+class War3AbilityLevelSpec(BaseModel):
+    level: int = Field(ge=1, le=5)
+    cooldown: float = Field(ge=0)
+    resource_cost: float = Field(default=0, ge=0)
+    damage: float | None = Field(default=None, ge=0)
+    area: float | None = Field(default=None, ge=0)
+    duration: float | None = Field(default=None, ge=0)
+    notes: str = ""
+
+
+class War3TargetFilters(BaseModel):
+    allowed: list[War3TargetType] = Field(default_factory=list)
+    enemy: bool = True
+    ally: bool = False
+    self: bool = False
+    ground: bool = False
+    summoned: bool = False
+
+
+class War3MissileSpec(BaseModel):
+    enabled: bool = False
+    speed: float | None = Field(default=None, ge=0)
+    arc: float | None = Field(default=None, ge=0)
+    homing: bool = False
+
+
+class War3AreaSpec(BaseModel):
+    enabled: bool = False
+    radius: float | None = Field(default=None, ge=0)
+    duration: float | None = Field(default=None, ge=0)
+    tick_interval: float | None = Field(default=None, gt=0)
+
+
+class War3BuffSpec(BaseModel):
+    enabled: bool = False
+    buff_type: StatusEffectType | None = None
+    duration: float | None = Field(default=None, ge=0)
+    tick_interval: float | None = Field(default=None, gt=0)
+    value: float | None = Field(default=None, ge=0)
+
+
+class War3SummonSpec(BaseModel):
+    enabled: bool = False
+    unit_name: str | None = None
+    duration: float | None = Field(default=None, ge=0)
+    attack_damage: float | None = Field(default=None, ge=0)
+    attack_range: float | None = Field(default=None, ge=0)
+
+
+class War3ArtBindingSpec(BaseModel):
+    hook: War3ArtHook
+    event: SkillEffectTrigger | None = None
+    usage: str
+    attachment: str | None = None
+
+
+class War3AbilityContract(BaseModel):
+    """Stable semantic contract before the demo runtime compiles the skill effects."""
+
+    ability_id: str
+    base_order: str
+    cast_type: War3CastType
+    primary_target: War3TargetType
+    target_filters: War3TargetFilters = Field(default_factory=War3TargetFilters)
+    effect_kinds: list[War3EffectKind] = Field(default_factory=list)
+    levels: list[War3AbilityLevelSpec] = Field(default_factory=list)
+    missile: War3MissileSpec = Field(default_factory=War3MissileSpec)
+    area: War3AreaSpec = Field(default_factory=War3AreaSpec)
+    buff: War3BuffSpec = Field(default_factory=War3BuffSpec)
+    summon: War3SummonSpec = Field(default_factory=War3SummonSpec)
+    art_bindings: list[War3ArtBindingSpec] = Field(default_factory=list)
+    unsupported_notes: list[str] = Field(default_factory=list)
+
+    @field_validator("ability_id", "base_order")
+    @classmethod
+    def identifiers_must_not_be_blank(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("field must not be blank")
+        return value.strip()
+
+
 class SkillSpec(BaseModel):
     slot: SkillSlot
     name: str
@@ -131,6 +252,7 @@ class SkillSpec(BaseModel):
     distance: float | None = Field(default=None, ge=0)
     status_effects: list[SkillStatusEffectSpec] = Field(default_factory=list)
     effects: list[SkillEffectSpec] = Field(default_factory=list)
+    ability_contract: War3AbilityContract | None = None
     description: str
     vfx: VfxSpec
 

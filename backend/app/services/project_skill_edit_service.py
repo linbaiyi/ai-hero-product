@@ -282,6 +282,8 @@ def _replace_runtime_vfx_skill_assets(
         {
             "playable_spec": parsed_playable.model_dump(),
             "runtime_vfx_asset_spec": None,
+            "hero_design": data.get("hero_design"),
+            "vfx_designs": data.get("vfx_designs", []),
             "transparent_background": True,
         }
     )
@@ -399,7 +401,7 @@ def _replace_runtime_vfx_skill_assets(
                 "scale": DEFAULT_SCALE_BY_USAGE[item.usage],
                 "duration": DEFAULT_DURATION_BY_USAGE[item.usage],
                 "loop": _should_loop_runtime_asset(item.skill_type, item.usage),
-                "color_tint": target_skill.vfx.color,
+                "color_tint": item.color_tint or target_skill.vfx.color,
             }
 
     updated_runtime = parsed_runtime.model_dump()

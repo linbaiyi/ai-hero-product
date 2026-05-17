@@ -9,7 +9,12 @@ from app.schemas.project_schema import ProjectSaveRequest
 from app.services import project_import_service
 from app.services.project_import_service import ProjectImportService
 from app.storage.project_repository import ProjectRepository
-from project_test_helpers import make_project_save_request, make_runtime_vfx_asset_spec
+from project_test_helpers import (
+    make_board_result,
+    make_image_result,
+    make_project_save_request,
+    make_runtime_vfx_asset_spec,
+)
 
 
 def make_archive(
@@ -87,6 +92,67 @@ def test_import_project_archive_restores_runtime_vfx_textures(tmp_path, monkeypa
     restored_path = fake_resolve_runtime_vfx_file(asset_path)
     assert restored_path.exists()
     assert restored_path.read_bytes() == texture_bytes
+
+
+def test_import_project_archive_restores_skill_images(tmp_path, monkeypatch):
+    service = make_service(tmp_path)
+    image_result = make_image_result()
+    project_data = make_project_save_request(image_results=[image_result])
+    image_root = tmp_path / "images"
+
+    def fake_resolve_output_file(path: str) -> Path:
+        normalized = path.replace("\\", "/").removeprefix("outputs/images/")
+        return image_root / normalized
+
+    monkeypatch.setattr(
+        project_import_service,
+        "resolve_output_file",
+        fake_resolve_output_file,
+    )
+
+    result = service.import_project_archive(
+        make_archive(
+            project_data,
+            extra_files={
+                "images/skill_fire.png": b"fake-skill-image",
+            },
+        )
+    )
+
+    restored_path = fake_resolve_output_file(result.project.image_results[0].image_path)
+    assert restored_path.exists()
+    assert restored_path.read_bytes() == b"fake-skill-image"
+
+
+def test_import_project_archive_restores_board_image(tmp_path, monkeypatch):
+    service = make_service(tmp_path)
+    board_result = make_board_result()
+    project_data = make_project_save_request(board_result=board_result)
+    output_root = tmp_path / "outputs"
+
+    def fake_resolve_output_file(path: str) -> Path:
+        normalized = path.replace("\\", "/").removeprefix("outputs/")
+        return output_root / normalized
+
+    monkeypatch.setattr(
+        project_import_service,
+        "resolve_output_file",
+        fake_resolve_output_file,
+    )
+
+    result = service.import_project_archive(
+        make_archive(
+            project_data,
+            extra_files={
+                "board/vfx_board.png": b"fake-board-image",
+            },
+        )
+    )
+
+    assert result.project.board_result is not None
+    restored_path = fake_resolve_output_file(result.project.board_result.board_path)
+    assert restored_path.exists()
+    assert restored_path.read_bytes() == b"fake-board-image"
 
 
 def test_import_project_archive_without_runtime_vfx_textures_still_saves_project(tmp_path):

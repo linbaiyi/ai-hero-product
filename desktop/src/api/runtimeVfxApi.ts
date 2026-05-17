@@ -1,6 +1,7 @@
 import { normalizeRuntimeVfxAssetSpec } from "../game-demo/vfx-assets/normalizeRuntimeVfxAssetSpec";
 import type { RuntimeVfxAssetSpec } from "../game-demo/vfx-assets/runtimeVfxTypes";
 import type { HeroPlayableSpec } from "../game-demo/specs/playableSpecTypes";
+import type { HeroDesign, HeroGenerateRequest, VfxDesign } from "../types/project";
 import { BACKEND_BASE_URL, readBackendErrorMessage } from "./backendApi";
 
 const CONNECTION_ERROR =
@@ -11,6 +12,10 @@ const VALIDATION_ERROR = "运行时贴图资产配置校验失败，请重新生
 export type GenerateRuntimeVfxAssetsRequest = {
   playable_spec: HeroPlayableSpec;
   runtime_vfx_asset_spec?: RuntimeVfxAssetSpec | null;
+  hero_design?: HeroDesign | null;
+  vfx_designs?: VfxDesign[];
+  source_request?: HeroGenerateRequest | null;
+  element_theme?: string | null;
   max_textures?: number;
   image_size?: "256x256" | "512x512" | "768x768" | "1024x1024";
   transparent_background?: boolean;
@@ -46,7 +51,7 @@ export async function generateRuntimeVfxAssets(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         runtime_vfx_asset_spec: null,
-        max_textures: 20,
+        max_textures: 99,
         image_size: "512x512",
         transparent_background: true,
         ...payload,

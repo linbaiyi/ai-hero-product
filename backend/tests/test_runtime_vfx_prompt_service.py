@@ -134,6 +134,27 @@ def request_payload(
     }
 
 
+def vfx_design(skill_name: str = "Sun Spear") -> dict:
+    return {
+        "skill_name": skill_name,
+        "vfx_category": "fire projectile",
+        "visual_keywords": ["flame", "ember", "scarlet energy"],
+        "stages": [
+            {"stage": "cast", "description": "Red flame gathers at the hand."},
+            {"stage": "flight", "description": "A scarlet fire bolt flies forward."},
+            {"stage": "impact", "description": "Orange embers burst outward."},
+            {"stage": "fade", "description": "Warm sparks fade out."},
+        ],
+        "color_palette": {
+            "main": "#FF3B1F",
+            "secondary": "#FF8A2A",
+            "dark": "#2A0703",
+        },
+        "camera_suggestion": "runtime centered sprite",
+        "sound_suggestion": "short flame burst",
+    }
+
+
 def generate(payload: dict | None = None):
     return RuntimeVfxPromptService().generate_prompts(
         RuntimeVfxPromptRequest.model_validate(payload or request_payload())
@@ -256,6 +277,118 @@ def test_skill_effects_create_stage_aware_runtime_vfx_prompts():
     )
 
 
+def test_ability_contract_art_bindings_create_runtime_vfx_prompts():
+    spec = playable_spec()
+    spec["skills"][0]["ability_contract"] = {
+        "ability_id": "q_sun_spear",
+        "base_order": "acidbomb",
+        "cast_type": "point_target",
+        "primary_target": "point",
+        "target_filters": {
+            "allowed": ["point", "enemy_unit"],
+            "enemy": True,
+            "ally": False,
+            "self": False,
+            "ground": True,
+            "summoned": False,
+        },
+        "effect_kinds": ["missile", "damage", "vfx_only"],
+        "levels": [
+            {
+                "level": 1,
+                "cooldown": 4,
+                "resource_cost": 20,
+                "damage": 120,
+                "area": 1,
+                "notes": "War3-style projectile with explicit art hooks.",
+            }
+        ],
+        "missile": {"enabled": True, "speed": 16, "arc": 0, "homing": False},
+        "area": {"enabled": False},
+        "buff": {"enabled": False},
+        "summon": {"enabled": False},
+        "art_bindings": [
+            {"hook": "cast", "event": "on_cast", "usage": "cast_flash"},
+            {"hook": "missile", "event": "on_cast", "usage": "projectile"},
+            {"hook": "impact", "event": "on_projectile_hit", "usage": "hit_flash"},
+        ],
+        "unsupported_notes": [],
+    }
+
+    response = generate(request_payload(spec=spec))
+    q_items = [item for item in response.prompts if item.slot == "Q"]
+
+    assert any(
+        item.usage == "cast_flash"
+        and item.trigger == "on_cast"
+        and item.action == "spawn_vfx_event"
+        for item in q_items
+    )
+    assert any(
+        item.usage == "projectile"
+        and item.trigger == "on_cast"
+        and item.action == "spawn_projectile"
+        for item in q_items
+    )
+
+
+def test_custom_ability_contract_art_usage_is_normalized_to_supported_runtime_usage():
+    spec = playable_spec()
+    spec["skills"][0]["vfx"]["theme"] = "ice"
+    spec["skills"][0]["vfx"]["color"] = "#7DDCFF"
+    spec["skills"][0]["ability_contract"] = {
+        "ability_id": "q_magma_eruption",
+        "base_order": "flamestrike",
+        "cast_type": "area_target",
+        "primary_target": "area",
+        "target_filters": {
+            "allowed": ["point", "area", "enemy_unit"],
+            "enemy": True,
+            "ally": False,
+            "self": False,
+            "ground": True,
+            "summoned": False,
+        },
+        "effect_kinds": ["damage", "area_persistent", "vfx_only"],
+        "levels": [
+            {
+                "level": 1,
+                "cooldown": 8,
+                "resource_cost": 30,
+                "damage": 90,
+                "area": 3,
+                "duration": 2,
+                "notes": "Custom War3 art hook name should compile to supported runtime usage.",
+            }
+        ],
+        "missile": {"enabled": False, "arc": 0, "homing": False},
+        "area": {"enabled": True, "radius": 3, "duration": 2, "tick_interval": 1},
+        "buff": {"enabled": False},
+        "summon": {"enabled": False},
+        "art_bindings": [
+            {
+                "hook": "impact",
+                "event": "on_cast",
+                "usage": "magma_eruption_vfx",
+            }
+        ],
+        "unsupported_notes": [],
+    }
+
+    payload = request_payload(spec=spec)
+    payload["vfx_designs"] = [vfx_design("Sun Spear")]
+
+    response = generate(payload)
+    q_items = [item for item in response.prompts if item.slot == "Q"]
+
+    assert any(item.usage == "impact" for item in q_items)
+    assert all(item.usage != "magma_eruption_vfx" for item in q_items)
+    impact = next(item for item in q_items if item.usage == "impact")
+    assert impact.color_tint == "#FF3B1F"
+    assert "primary color #FF3B1F" in impact.prompt
+    assert "fire element" in impact.prompt
+
+
 def test_spawn_vfx_event_creates_hit_flash_and_impact_prompts():
     spec = playable_spec()
     spec["skills"][0]["effects"] = [
@@ -341,6 +474,71 @@ def test_prompts_contain_no_text_no_logo_no_watermark_keywords():
         assert "no text" in prompt_text
         assert "no logo" in prompt_text
         assert "no watermark" in prompt_text
+
+
+def test_runtime_prompts_prefer_vfx_design_palette_and_keywords():
+    payload = request_payload()
+    payload["playable_spec"]["skills"][0]["vfx"]["theme"] = "ice"
+    payload["playable_spec"]["skills"][0]["vfx"]["color"] = "#7DDCFF"
+    payload["vfx_designs"] = [vfx_design()]
+
+    response = generate(payload)
+    projectile = next(
+        item for item in response.prompts if item.slot == "Q" and item.usage == "projectile"
+    )
+
+    assert projectile.color_tint == "#FF3B1F"
+    assert "fire element" in projectile.prompt
+    assert "primary color #FF3B1F" in projectile.prompt
+    assert "visual design color palette main #FF3B1F" in projectile.prompt
+    assert "#FF8A2A" in projectile.prompt
+    assert (
+        "visual design keywords fire projectile, flame, ember, scarlet energy"
+        in projectile.prompt
+    )
+    assert "must preserve this palette" in projectile.prompt
+
+
+def test_runtime_prompts_match_vfx_design_by_slot_when_playable_skill_name_changes():
+    payload = request_payload()
+    payload["playable_spec"]["skills"][0]["name"] = "Generated Fire Bolt"
+    payload["playable_spec"]["skills"][0]["vfx"]["theme"] = "ice"
+    payload["playable_spec"]["skills"][0]["vfx"]["color"] = "#7DDCFF"
+    payload["hero_design"] = {
+        "hero_name": "Liena",
+        "hero_title": "Flame Caster",
+        "role": "mage",
+        "difficulty": 2,
+        "core_tags": ["fire", "projectile"],
+        "background": "A fire mage.",
+        "combat_style": "Casts red flame projectiles.",
+        "skills": [
+            {
+                "slot": "Q",
+                "name": "Sun Spear",
+                "type": "projectile",
+                "description": "A red flame projectile.",
+                "mechanics": "projectile",
+                "cooldown": "4s",
+                "cost": "20 mana",
+                "damage_type": "fire",
+                "balance_notes": "Training demo projectile.",
+            }
+        ],
+        "combo_logic": "Hit enemies with fire.",
+        "counterplay": "Dodge the projectile.",
+        "balance_summary": "Short cooldown fire poke.",
+    }
+    payload["vfx_designs"] = [vfx_design("Sun Spear")]
+
+    response = generate(payload)
+    projectile = next(
+        item for item in response.prompts if item.slot == "Q" and item.usage == "projectile"
+    )
+
+    assert projectile.color_tint == "#FF3B1F"
+    assert "primary color #FF3B1F" in projectile.prompt
+    assert "fire element" in projectile.prompt
 
 
 def test_invalid_playable_spec_fails():
